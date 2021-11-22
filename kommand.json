@@ -4,7 +4,7 @@
             "type": "ext",
             "displayname": "CK API Gateway",
             "cloud": "AWS",
-            "resources": ["apigateway::api", "logs::loggroup"],
+            "resources": ["AWS::apigateway::api", "AWS::logs::loggroup"],
             "policy": {
                 "Version": "2012-10-17",
                 "Statement": [{
