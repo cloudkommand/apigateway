@@ -1,0 +1,204 @@
+{
+    "components": {
+        "api": {
+            "type": "ext",
+            "displayname": "CK API Gateway",
+            "cloud": "AWS",
+            "resources": ["apigateway::api", "logs::loggroup"],
+            "policy": {
+                "Version": "2012-10-17",
+                "Statement": [{
+                    "Sid": "Vis",
+                    "Effect": "Allow",
+                    "Action": [
+                        "lambda:AddPermission",
+                        "logs:*",
+                        "apigateway:PUT",
+                        "apigateway:POST",
+                        "apigateway:PATCH",
+                        "apigateway:DELETE",
+                        "apigateway:GET"
+                    ],
+                    "Resource": "*"
+                }]
+            },
+            "input": {
+                "type": "object",
+                "properties": {
+                    "resources": {
+                        "type": "object",
+                        "description": "Each key at the base level of this object must specify a route (e.g. /soar). Then, each value should be an object with additional route keys and/or HTTP methods as keys (e.g. PATCH). The route keys should have as their value either an HTTP endpoint, a lambda component reference, a lambda ARN, or a list with the first element being one of the three previously mentioned strings and the second element being the name of an authorizer. http://NOTHEREYET for examples."
+                    },
+                    "cors_configuration": {
+                        "type": "object",
+                        "description": "If you want to specify a custom CORS configuration to attach to this API, pass this parameter",
+                        "properties": {
+                            "allowOrigins": {
+                                "type": "array",
+                                "description": "Set to \"*\" to allow all origins. Otherwise set to a list of origins"
+                            },
+                            "allowMethods": {
+                                "type": "array",
+                                "description": "Set to \"*\" to allow all methods. Otherwise set to a list of methods"
+                            },
+                            "allowHeaders": {
+                                "type": "array",
+                                "description": "Set to a list of headers for Access-control-allow-headers in CORS"
+                            },
+                            "exposeHeaders": {
+                                "type": "array",
+                                "description": "Set to a list of headers for Access-control-expose-headers in CORS"
+                            },
+                            "maxAge": {
+                                "type": "number"
+                            }
+                        },
+                        "required": [
+                            "allowOrigins",
+                            "allowMethods",
+                            "allowHeaders",
+                            "exposeHeaders"
+                        ]
+                    },
+                    "authorizers": {
+                        "type": "object",
+                        "description": "A dictionary of the JWT and Lambda authorizers that should be attached to this API",
+                        "properties": {
+                            "audience": {
+                                "type": "string",
+                                "description": "The audience that the JWT authorizer should validate against"
+                            },
+                            "audiences": {
+                                "type": "array",
+                                "description": "A list of audiences the JWT authorizer should validate against"
+                            },
+                            "issuer": {
+                                "type": "string",
+                                "description": "The issuer of the token."
+                            },
+                            "connect_url": {
+                                "type": "string",
+                                "description": "Cognito endpoint to get issuer from. Only set for Cognito JWT issuers"
+                            },
+                            "source": {
+                                "type": "string",
+                                "description": "The header to get the JWT from. Only set if you want a header other than Authorization"
+                            },
+                            "lambda_arn": {
+                                "type": "string",
+                                "description": "The ARN for the desired authorizer Lambda"
+                            },
+                            "payload_version": {
+                                "type": "string",
+                                "enum": ["1.0", "2.0"],
+                                "default": "2.0",
+                                "description": "The event format passed to Lambdas by API Gateway. We recommend 2.0. See https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html for a comparison of the two and more details"
+                            },
+                            "enable_simple_responses": {
+                                "type": "boolean",
+                                "description": "Whether to allow the authorizer to return a boolean value only",
+                                "default": true
+                            },
+                            "cache_seconds": {
+                                "type": "integer",
+                                "description": "How long to cache this Authorizer result",
+                                "default": 300
+                            }
+                        },
+                        "oneOf": [
+                            {
+                                "required": [
+                                    "lambda_arn"
+                                ]
+                            },
+                            {
+                                "required": [
+                                    "audience",
+                                    "issuer"
+                                ]
+                            },
+                            {
+                                "required": [
+                                    "audiences",
+                                    "issuer"
+                                ]
+                            },
+                            {
+                                "required": [
+                                    "audience",
+                                    "connect_url"
+                                ]
+                            },
+                            {
+                                "required": [
+                                    "audiences",
+                                    "connect_url"
+                                ]
+                            }
+                        ]
+                    },
+                    "stage_variables": {
+                        "type": "object",
+                        "description": "key-value pairs of variables that should get attached to the stage"
+                    },
+                    "lambda_payload_version": {
+                        "type": "string",
+                        "enum": ["1.0", "2.0"],
+                        "default": "2.0",
+                        "description": "The event format passed to Lambdas by API Gateway. We recommend 2.0. See https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html for a comparison of the two and more details"
+                    },
+                    "throttling_burst_limit": {
+                        "type": "integer",
+                        "description": "The default burst limit for all routes"
+                    },
+                    "throttling_rate_limit": {
+                        "type": "number",
+                        "description": "The default rate limit for all routes"
+                    },
+                    "cors_enabled": {
+                        "type": "boolean",
+                        "description": "If true (and cors_configuration not specified), sets the cors configuration to a set of default values intended to service basic APIs being hit by the browser. See http://NotHereYet for details"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the API Gateway. Will be auto-generated if not specified"
+                    },
+                    "stage_name": {
+                        "type": "string",
+                        "description": "The name of the stage, this is added to the URL of the API for all endpoints",
+                        "default": "live"
+                    }
+                },
+                "required": [
+                    "resources"
+                ]
+            },
+            "props": {
+                "log_group_arn": {
+                    "type": "string",
+                    "description": "The ARN of the log group associated with this API"
+                },
+                "log_group_name": {
+                    "type": "string",
+                    "description": "The name of the log group associated with this API"
+                },
+                "api_id": {
+                    "type": "string",
+                    "description": "The ID of this API. Appears in the default HTTP endpoint"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "The name of this API, as it appears in the console"
+                },
+                "api_endpoint": {
+                    "type": "string",
+                    "description": "The default HTTP endpoint of this API"
+                },
+                "stage_name": {
+                    "type": "string",
+                    "description": "The name of the deployed stage"
+                }
+            }
+        }
+    }
+}
