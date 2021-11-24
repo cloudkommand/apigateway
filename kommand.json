@@ -3,6 +3,7 @@
         "api": {
             "type": "ext",
             "displayname": "CK API Gateway",
+            "description": "Deploys an AWS APi Gateway. API Gateway sits on the front of your API and handles accepting and processing API calls",
             "cloud": "AWS",
             "resources": ["AWS::apigateway::api", "AWS::logs::loggroup"],
             "policy": {
