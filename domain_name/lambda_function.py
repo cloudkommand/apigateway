@@ -71,7 +71,7 @@ def lambda_handler(event, context):
             remove_tags(domain_name_arn)
             add_tags(domain_name_arn)
             remove_domain_name()
-            
+
         return eh.finish()
 
     except Exception as e:
@@ -94,7 +94,7 @@ def get_acm_cert(domain_name, region):
     while cursor:
         try:
             payload = remove_none_attributes({
-                "CertificateStatuses": ["ISSUED"],
+                # "CertificateStatuses": ["ISSUED"],
                 "NextToken": cursor if cursor != 'none' else None
             })
             cert_response = acm.list_certificates(**payload)
