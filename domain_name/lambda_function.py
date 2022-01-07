@@ -51,25 +51,27 @@ def lambda_handler(event, context):
 
         get_acm_cert(domain_name, region)
 
-        desired_config = remove_none_attributes({
-            "CertificateArn": eh.props['certificate_arn'],
-            "EndpointType": "REGIONAL",
-            "SecurityPolicy": "TLS_1_2"
-        })
+        if eh.props.get("certificate_arn"):
+            desired_config = remove_none_attributes({
+                "CertificateArn": eh.props['certificate_arn'],
+                "EndpointType": "REGIONAL",
+                "SecurityPolicy": "TLS_1_2"
+            })
 
-        desired_tls_config = remove_none_attributes({
-            "TruststoreUri": cdef.get("truststore_uri"),
-            "TruststoreVersion": cdef.get("truststore_version")
-        })
+            desired_tls_config = remove_none_attributes({
+                "TruststoreUri": cdef.get("truststore_uri"),
+                "TruststoreVersion": cdef.get("truststore_version")
+            })
 
-        domain_name_arn = gen_apigateway_arn(domain_name, region)
+            domain_name_arn = gen_apigateway_arn(domain_name, region)
 
-        get_domain_name(prev_state, domain_name, desired_config, desired_tls_config, tags)
-        create_domain_name(domain_name, desired_config, desired_tls_config, tags, region)
-        update_domain_name(domain_name, desired_config, desired_tls_config, region)
-        remove_tags(domain_name_arn)
-        add_tags(domain_name_arn)
-        remove_domain_name()
+            get_domain_name(prev_state, domain_name, desired_config, desired_tls_config, tags)
+            create_domain_name(domain_name, desired_config, desired_tls_config, tags, region)
+            update_domain_name(domain_name, desired_config, desired_tls_config, region)
+            remove_tags(domain_name_arn)
+            add_tags(domain_name_arn)
+            remove_domain_name()
+            
         return eh.finish()
 
     except Exception as e:
@@ -96,12 +98,14 @@ def get_acm_cert(domain_name, region):
                 "NextToken": cursor if cursor != 'none' else None
             })
             cert_response = acm.list_certificates(**payload)
+            print(f"cert_response = {cert_response}")
             certs.extend(cert_response.get("CertificateSummaryList", []))
             cursor = cert_response.get("nextToken")
         except ClientError as e:
             handle_common_errors(e, eh, "List Certificates Failed", 0)
     
     sorted_matching_certs = list(filter(lambda x: domain_name.endswith(x["DomainName"]), certs)).sort(key=lambda x:len(x['DomainName']))
+    print(f"sorted_matching_certs = {sorted_matching_certs}")
 
     if not sorted_matching_certs:
         eh.perm_error("No Matching ACM Certificate Found, Cannot Create API Custom Domain")
