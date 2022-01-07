@@ -221,7 +221,7 @@
                         "apigateway:PATCH",
                         "apigateway:DELETE",
                         "apigateway:GET",
-                        "acm:*"
+                        "acm:ListCertificates"
                     ],
                     "Resource": "*"
                 }]

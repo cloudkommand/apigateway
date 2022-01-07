@@ -104,7 +104,7 @@ def get_acm_cert(domain_name, region):
         except ClientError as e:
             handle_common_errors(e, eh, "List Certificates Failed", 0)
     
-    print(certs)
+    # print(certs)
     print(list(filter(lambda x: domain_name.endswith(x["DomainName"].replace("*", "")), certs)))
     sorted_matching_certs = list(filter(lambda x: domain_name.endswith(x["DomainName"].replace("*", "")), certs)).sort(key=lambda x:len(x['DomainName']))
     print(f"sorted_matching_certs = {sorted_matching_certs}")
