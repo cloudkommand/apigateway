@@ -23,6 +23,9 @@
                     "Resource": "*"
                 }]
             },
+            "environment_variables": {
+                "domain_name_extension_arn": "@domain_name:props.function_arn"
+            },
             "input": {
                 "type": "object",
                 "properties": {
@@ -199,6 +202,29 @@
                     "type": "string",
                     "description": "The name of the deployed stage"
                 }
+            }
+        },
+        "domain_name": {
+            "type": "ext",
+            "displayname": "CK API Gateway Custom Domain Name",
+            "description": "Deploys an AWS APi Gateway Custom Domain Name. Custom Domain Names are used to route calls from Route53 to an API Gateway",
+            "cloud": "AWS",
+            "resources": ["AWS::apigateway::customdomainname"],
+            "policy": {
+                "Version": "2012-10-17",
+                "Statement": [{
+                    "Sid": "Vis",
+                    "Effect": "Allow",
+                    "Action": [
+                        "apigateway:PUT",
+                        "apigateway:POST",
+                        "apigateway:PATCH",
+                        "apigateway:DELETE",
+                        "apigateway:GET",
+                        "acm:*"
+                    ],
+                    "Resource": "*"
+                }]
             }
         }
     }
