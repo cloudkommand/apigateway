@@ -38,15 +38,6 @@ def lambda_handler(event, context):
         # if not role_arn:
         #     return creturn(200, 0, error=f"Must provide a role_arn. Please use either the role or role_arn keywords")
 
-        layer_arns = cdef.get("layer_arns") or []
-        layers = cdef.get("layers") or []
-        if layers:
-            try:
-                layer_arns.extend(list(map(lambda x: x['version_arn'], layers)))
-            except:
-                eh.add_log("Invalid Layer Parameters", {"layers": layers})
-                eh.perm_error("Invalid layer parameters", 0)
-
         domain_name = cdef.get("name") or form_domain(component_safe_name(project_code, repo_id, cname, no_underscores=False), cdef.get("base_domain"))
         pass_back_data = event.get("pass_back_data", {})
         
@@ -128,7 +119,6 @@ def get_domain_name(prev_state, domain_name, desired_config, desired_tls_config,
         old_domain_name = prev_state["props"]["name"]
         if old_domain_name and (old_domain_name != domain_name):
             eh.add_op("remove_old", {"name": old_domain_name, "create_and_remove": True})
-            # return 0
 
     try:
         response = v2.get_domain_name(DomainName=domain_name)
