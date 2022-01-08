@@ -70,7 +70,9 @@ def lambda_handler(event, context):
             update_domain_name(domain_name, desired_config, desired_tls_config, region)
             remove_tags(domain_name_arn)
             add_tags(domain_name_arn)
-            remove_domain_name()
+
+        #We call this one no matter what
+        remove_domain_name()
 
         return eh.finish()
 
