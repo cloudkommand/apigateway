@@ -106,7 +106,8 @@ def get_acm_cert(domain_name, region):
     
     # print(certs)
     print(list(filter(lambda x: domain_name.endswith(x["DomainName"].replace("*", "")), certs)))
-    sorted_matching_certs = list(filter(lambda x: domain_name.endswith(x["DomainName"].replace("*", "")), certs)).sort(key=lambda x:len(x['DomainName']))
+    sorted_matching_certs = list(filter(lambda x: domain_name.endswith(x["DomainName"].replace("*", "")), certs))
+    sorted_matching_certs.sort(key=lambda x:len(x['DomainName']))
     print(f"sorted_matching_certs = {sorted_matching_certs}")
 
     if not sorted_matching_certs:
