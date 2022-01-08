@@ -47,7 +47,7 @@ def lambda_handler(event, context):
         elif op == "upsert":
             eh.add_op("get_acm_cert")
         elif op == "delete":
-            eh.add_op("remove_old", {"name": domain_name})
+            eh.add_op("remove_old", {"name": eh.props['name']})
 
         get_acm_cert(domain_name, region)
 
