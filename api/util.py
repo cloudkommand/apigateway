@@ -107,6 +107,9 @@ def generate_openapi_definition(name, full_resources, cors_configuration, author
                         "x-amazon-apigateway-integration": remove_none_attributes({
                             "uri": uri,
                             "httpMethod": k.upper(),
+                            "requestParameters": {
+                                "integration.request.path.proxy": "method.request.path.proxy"
+                            },
                             "passthroughBehavior": "when_no_match",
                             "type": integration_type,
                             "timeoutInMillis": 29000
