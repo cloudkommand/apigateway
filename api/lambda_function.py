@@ -45,7 +45,9 @@ def lambda_handler(event, context):
         stage_variables = cdef.get("stage_variables")
         throttling_burst_limit = cdef.get("throttling_burst_limit")
         throttling_rate_limit = cdef.get("throttling_rate_limit")
-        domain_names = cdef.get("domain_names") or [cdef.get("domain_name")] or None
+        domain_names = cdef.get("domain_names") or [cdef.get("domain_name")] or \
+            ([f"{component_safe_name(project_code, repo_id, cname)}.{cdef.get('base_domain')}"] 
+            if cdef.get("base_domain") else None)
         pass_back_data = event.get("pass_back_data", {})
         old_log_group_name = prev_state.get("props", {}).get("log_group_name")
         
