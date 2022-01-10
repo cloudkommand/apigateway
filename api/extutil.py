@@ -9,35 +9,50 @@ import os
 import boto3
 import botocore
 
-NAME_REGEX = r"[a-zA-Z0-9\-\_]+"
-LOWERCASE_NAME_REGEX = r"[a-z0-9\-\_]+"
+NAME_REGEX = r"^[a-zA-Z0-9\-\_]+$"
+LOWERCASE_NAME_REGEX = r"^[a-z0-9\-\_]+$"
+NO_UNDERSCORE_NAME_REGEX = r"^[a-zA-Z0-9\-]+$"
+NO_UNDERSCORE_LOWERCASE_NAME_REGEX = r"^[a-z0-9\-]+$"
 
-#Needs to be looked at, this seems dumb
-def process_repo_id(repo_id, no_uppercase):
+def safe_encode(string):
+    return base64.b32encode(string.encode("ascii")).decode("ascii").replace("=", "-")
+
+def safeval(string, no_underscores, no_uppercase):
+    if no_uppercase and no_underscores:
+        the_regex=NO_UNDERSCORE_LOWERCASE_NAME_REGEX
+    elif no_uppercase:
+        the_regex=LOWERCASE_NAME_REGEX
+    elif no_underscores:
+        the_regex=NO_UNDERSCORE_NAME_REGEX
+    else:
+        the_regex=NO_UNDERSCORE_LOWERCASE_NAME_REGEX
+
+    print(the_regex)
+    print(re.match(the_regex, string))
+    if not re.match(the_regex, string):
+        print(string)
+        string = safe_encode(string).lower()
+    return string
+    
+def process_repo_id(repo_id, no_underscores, no_uppercase):
     repo_provider = None
     if repo_id.startswith("github.com/"):
         _, owner_name, repo_name = repo_id.split("/")
         repo_provider = "g"
-        if no_uppercase and not re.match(LOWERCASE_NAME_REGEX, repo_name.lower()):
-            repo_name = base64.b32encode(repo_name.encode("ascii")).decode("ascii").replace("=", "-")
-        elif not re.match(NAME_REGEX, repo_name):
-            repo_name = base64.b32encode(repo_name.encode("ascii")).decode("ascii").replace("=", "-")
-        
-        if no_uppercase and not re.match(LOWERCASE_NAME_REGEX, owner_name.lower()):
-            owner_name = base64.b32encode(owner_name.encode("ascii")).decode("ascii").replace("=", "-")
-        elif not re.match(NAME_REGEX, owner_name):
-            owner_name = base64.b32encode(owner_name.encode("ascii")).decode("ascii").replace("=", "-")
+        owner_name = safeval(owner_name, no_underscores, no_uppercase)
+        repo_name = safeval(repo_name, no_underscores, no_uppercase)
 
     return repo_provider, owner_name, repo_name
 
-def component_safe_name(project_code, repo_id, component_name, no_underscores=False, no_uppercase=False):
-    provider, owner, repo = process_repo_id(repo_id, no_uppercase)
+def component_safe_name(project_code, repo_id, component_name, no_underscores=False, no_uppercase=False, max_chars=64):
+    provider, owner, repo = process_repo_id(repo_id, no_underscores, no_uppercase)
+    component_name = safeval(component_name, no_underscores, no_uppercase)
 
     full_name = f"ck-{project_code}-{provider}-{owner}-{repo}-{component_name}"
-    if len(full_name) > 64:
+    if len(full_name) > max_chars:
         full_name = f"ck-{hashlib.md5(full_name.encode()).hexdigest()}"
-        if len(full_name) > 64:
-            full_name = full_name[:64]
+        if len(full_name) > max_chars:
+            full_name = full_name[:max_chars]
     return full_name
 
 def remove_none_attributes(payload):

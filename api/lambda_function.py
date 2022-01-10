@@ -45,7 +45,7 @@ def lambda_handler(event, context):
         throttling_burst_limit = cdef.get("throttling_burst_limit")
         throttling_rate_limit = cdef.get("throttling_rate_limit")
         domain_name = cdef.get("domain_name") or \
-            (f"{component_safe_name(project_code, repo_id, cname, no_underscores=True)}.{cdef.get('base_domain')}" 
+            (f"{component_safe_name(project_code, repo_id, cname, no_underscores=True, max_chars=112)}.{cdef.get('base_domain')}" 
             if cdef.get("base_domain") else None)
         domain_names = cdef.get("domain_names") or ([domain_name] if domain_name else None)
         pass_back_data = event.get("pass_back_data", {})
