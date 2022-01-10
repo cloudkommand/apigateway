@@ -532,7 +532,7 @@ def setup_route53_to_api(domain_names, prev_state, stage_name):
         if eh.error:
             return 0
 
-    eh.add_props{{"domain_names": domain_names}}
+    eh.add_props({"domain_names": domain_names})
 
 @ext(handler=eh, op="handle_custom_domain")
 def handle_custom_domain(domain_name, op, integer):

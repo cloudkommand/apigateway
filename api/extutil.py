@@ -176,8 +176,8 @@ class ExtensionHandler:
             progress_start, progress_end, object_name=None, 
             op=None, merge_props=False, links_prefix=None):
 
-        # if merge_props:
-        #     raise Exception("Cannot Merge Props")
+        if merge_props:
+            raise Exception("Cannot Merge Props")
         if child_key in ['ops', 'retries', 'props', 'links']:
             raise Exception(f"Child key cannot be set to {child_key}. Please choose another key")
         
@@ -191,7 +191,7 @@ class ExtensionHandler:
             "op": op,
             "s3_object_name": object_name,
             "pass_back_data": self.children.get(child_key),
-            # "prev_state": {"props": self.props.get(child_key)} if self.props.get(child_key) else None,
+            "prev_state": {"props": self.props.get(child_key)} if self.props.get(child_key) else None,
             "bucket": self.bucket,
             "repo_id": self.repo_id,
             "project_code": self.project_code
