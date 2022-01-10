@@ -108,7 +108,7 @@ def generate_openapi_definition(name, full_resources, cors_configuration, author
                             {
                                 "name": "proxy",
                                 "in": "path",
-                                "required": true,
+                                "required": True,
                                 "schema": {
                                     "type": "string"
                                 }
