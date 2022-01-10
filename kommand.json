@@ -13,6 +13,8 @@
                     "Effect": "Allow",
                     "Action": [
                         "lambda:AddPermission",
+                        "lambda:GetFunction",
+                        "lambda:InvokeFunction",
                         "logs:*",
                         "apigateway:PUT",
                         "apigateway:POST",

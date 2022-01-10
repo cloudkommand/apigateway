@@ -3,10 +3,13 @@ import botocore
 # import jsonschema
 import json
 import traceback
+from botocore.exceptions import ClientError
 
 from extutil import remove_none_attributes, account_context, ExtensionHandler, \
-    ext, component_safe_name
+    ext, component_safe_name, handle_common_errors, lambda_env
 from util import get_default_cors_configuration, generate_openapi_definition
+
+
 
 eh = ExtensionHandler()
 # def validate_state(state):
@@ -16,6 +19,7 @@ eh = ExtensionHandler()
 # "s3_object_name": object_name,
 # "pass_back_data": pass_back_data
 #     jsonschema.validate()
+apiv2 = boto3.client("apigatewayv2")
 
 def lambda_handler(event, context):
     try:
@@ -41,16 +45,20 @@ def lambda_handler(event, context):
         stage_variables = cdef.get("stage_variables")
         throttling_burst_limit = cdef.get("throttling_burst_limit")
         throttling_rate_limit = cdef.get("throttling_rate_limit")
+        domain_names = cdef.get("domain_names") or [cdef.get("domain_name")] or None
         pass_back_data = event.get("pass_back_data", {})
-        api_id = prev_state.get("props", {}).get("api_id")
         old_log_group_name = prev_state.get("props", {}).get("log_group_name")
         
         if pass_back_data:
             pass
         elif event.get("op") == "upsert":
             eh.add_op("get_current_state")
+            if domain_names:
+                eh.add_op("setup_route53_to_api")
         elif event.get("op") == "delete":
             eh.add_op("delete_api", api_id)
+            if domain_names:
+                eh.add_op("setup_route53_to_api")
         
         get_current_state(log_group_name, api_id, old_log_group_name, stage_name, region)
         create_cloudwatch_log_group(region, account_number)
@@ -61,6 +69,7 @@ def lambda_handler(event, context):
         update_stage(stage_variables, throttling_burst_limit, throttling_rate_limit)
         delete_stage()
         confirm_stage_deployment()
+        setup_route53_to_api(domain_names, prev_state)
         delete_api()
         remove_cloudwatch_log_group()
 
@@ -249,8 +258,6 @@ def remove_cloudwatch_log_group():
 
 @ext(handler=eh, op="create_api")
 def create_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, custom_domain_name=None):
-    apiv2 = boto3.client("apigatewayv2")
-
     definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
     print(f"definition = {definition}")
     print(type(definition))
@@ -293,8 +300,6 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
 
 @ext(handler=eh, op="update_api")
 def update_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_id, prev_state, custom_domain_name=None):
-    apiv2 = boto3.client("apigatewayv2")
-
     definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
     print(f"definition = {definition}")
 
@@ -343,8 +348,6 @@ def gen_api_link(api_id, region):
 #Only gets called if we are removing the API completely
 @ext(handler=eh, op="delete_api")
 def delete_api():
-    apiv2 = boto3.client("apigatewayv2")
-
     api_id = eh.ops['delete_api']
 
     try:
@@ -387,8 +390,6 @@ def add_lambda_permissions(account_number):
 
 @ext(handler=eh, op="create_stage")
 def create_stage(stage_variables, throttling_burst_limit, throttling_rate_limit):
-    apiv2 = boto3.client("apigatewayv2")
-
     stage_name = eh.ops['create_stage']
 
     print(f"props = {eh.props}")
@@ -431,8 +432,6 @@ def create_stage(stage_variables, throttling_burst_limit, throttling_rate_limit)
 
 @ext(handler=eh, op="update_stage")
 def update_stage(stage_variables, throttling_burst_limit, throttling_rate_limit):
-    apiv2 = boto3.client("apigatewayv2")
-
     stage_name = eh.ops['update_stage']
 
     print(f"props = {eh.props}")
@@ -474,8 +473,6 @@ def update_stage(stage_variables, throttling_burst_limit, throttling_rate_limit)
 
 @ext(handler=eh, op="delete_stage")
 def delete_stage():
-    apiv2 = boto3.client("apigatewayv2")
-
     stage_names = eh.ops['delete_stage']
     api_id = eh.props['api_id']
 
@@ -491,8 +488,6 @@ def delete_stage():
 
 @ext(handler=eh, op="confirm_stage_deployment")
 def confirm_stage_deployment():
-    apiv2 = boto3.client("apigatewayv2")
-
     stage_name = eh.ops['confirm_stage_deployment']
     api_id = eh.props['api_id']
 
@@ -505,3 +500,118 @@ def confirm_stage_deployment():
     else:
         eh.add_log("Stage Still Deploying", {"stage_name": stage_name})
         eh.declare_return(200, 75, error_code="stage_deploying")
+
+@ext(handler=eh, op="setup_route53_to_api")
+def setup_route53_to_api(domain_names, prev_state):
+    
+    #Erase all old status, we start this from the beginning every time
+    for op in ["handle_custom_domain", "get_api_mapping", "create_api_mapping", "update_api_mapping", "remove_api_mappings"]:
+        eh.complete_op(op)
+
+    previous_domain_names = prev_state.get("props", {}).get("domain_names", [])
+    all_domain_names = list(set(domain_names+previous_domain_names))
+    print(f"previous_domain_names = {previous_domain_names}")
+    print(f"desired domain_names = {domain_names}")
+    for i, domain_name in enumerate(all_domain_names):
+        eh.add_op("handle_custom_domain")
+        if domain_name in domain_names:
+            eh.add_op("get_api_mapping")
+            op = "upsert"
+        else:
+            op = "remove"
+        handle_custom_domain(domain_name, op, (i+1))
+        get_api_mapping(domain_name, domain_names)
+        create_api_mapping(domain_name)
+        update_api_mapping(domain_name)
+        remove_api_mappings(domain_name)
+        if eh.error:
+            return 0    
+
+@ext(handler=eh, op="handle_custom_domain")
+def handle_custom_domain(domain_name, op, integer):
+    S3 = eh.props.get("S3", {})
+    component_def = {
+        "domain_name": domain_name
+    }
+
+    function_arn = lambda_env('domain_name_extension_arn')
+
+    proceed = eh.invoke_extension(
+        arn=function_arn, component_def=component_def, 
+        child_key=f"Domain {integer}", progress_start=85, progress_end=100,
+        merge_props=False, op=op, links_prefix=f"Domain {integer}")
+
+    # if proceed:
+    #     eh.add_links({"Website URL": f'http://{eh.props["Route53"].get("domain")}'})
+    # print(f"proceed = {proceed}")       
+
+
+@ext(handler=eh, op="get_api_mapping")
+def get_api_mapping(domain_name, desired_domain_names):
+    response = apiv2.get_api_mappings(DomainName=domain_name)
+    these_mappings = list(filter(lambda x: x["ApiId"] == eh.props['api_id'], response['Items']))
+    
+    if these_mappings and (domain_name not in desired_domain_names):
+        eh.add_op("remove_api_mappings", list(map(lambda x: x['ApiMappingId'], these_mappings)))
+
+    elif not these_mappings and (domain_name in desired_domain_names):
+        eh.add_op("create_api_mapping")
+
+    elif domain_name in desired_domain_names:
+        eh.add_op("update_api_mapping", these_mappings[0].get("ApiMappingId"))
+        if len(these_mappings) > 1:
+            eh.add_op("remove_api_mappings", list(map(lambda x: x['ApiMappingId'], these_mappings[1:])))
+
+    else:
+        print(f"Nothing to do for domain_name {domain_name}")
+
+@ext(handler=eh, op="create_api_mapping")
+def create_api_mapping(domain_name):
+
+    try:
+        response = apiv2.create_api_mapping(
+            ApiId=eh.props['api_id'],
+            DomainName=domain_name
+        )
+
+        api_mapping_props = eh.props.get("api_mappings") or {}
+        api_mapping_props[domain_name] = response.get("ApiMappingId")
+        eh.add_props({"api_mappings": api_mapping_props})
+        eh.add_log("Created API Mapping", response)
+    except ClientError as e:
+        handle_common_errors(e, eh, "Create API Mapping Failed", 85)
+
+@ext(handler=eh, op="update_api_mapping")
+def update_api_mapping(domain_name):
+
+    try:
+        response = apiv2.update_api_mapping(
+            ApiId=eh.props['api_id'],
+            ApiMappingId=eh.ops['update_api_mapping'],
+            DomainName=domain_name
+        )
+
+        api_mapping_props = eh.props.get("api_mappings") or {}
+        api_mapping_props[domain_name] = response.get("ApiMappingId")
+        eh.add_props({"api_mappings": api_mapping_props})
+        eh.add_log("Updated API Mapping", response)
+    except ClientError as e:
+        handle_common_errors(e, eh, "Update API Mapping Failed", 85)
+
+@ext(handler=eh, op="remove_api_mappings")
+def remove_api_mappings(domain_name):
+
+    for api_mapping_id in eh.ops['remove_api_mappings']:
+        try:
+            response = apiv2.delete_api_mapping(
+                ApiMappingId=api_mapping_id,
+                DomainName=domain_name
+            )
+            eh.add_log("Removed API Mapping", {"id": api_mapping_id, "domain_name": domain_name})
+
+        except ClientError as e:
+            if e.response['Error']['Code'] != "NotFoundException":
+                handle_common_errors(e, eh, "Delete API Mapping Failed", 85)
+            else:
+                eh.add_log("API Mapping Not found", {"id": api_mapping_id})
+                return 0

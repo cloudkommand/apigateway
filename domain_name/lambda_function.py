@@ -192,7 +192,8 @@ def create_domain_name(domain_name, desired_config, desired_tls_config, tags, re
             "api_gateway_domain_name": config.get("ApiGatewayDomainName")
         })
         eh.add_links({
-            "AWS Custom Domain Name": gen_custom_domain_link(domain_name, region)
+            "AWS Custom Domain Name": gen_custom_domain_link(domain_name, region),
+            "URL": gen_domain_url(domain_name)
         })
 
     except ClientError as e:
@@ -219,7 +220,8 @@ def update_domain_name(domain_name, desired_config, desired_tls_config, region):
             "api_gateway_domain_name": config.get("ApiGatewayDomainName")
         })
         eh.add_links({
-            "AWS Custom Domain Name": gen_custom_domain_link(domain_name, region)
+            "AWS Custom Domain Name": gen_custom_domain_link(domain_name, region),
+            "URL": gen_domain_url(domain_name)
         })
 
     except ClientError as e:
@@ -279,6 +281,9 @@ def gen_certificate_link(certificate_arn, region):
 
 def gen_custom_domain_link(domain_name, region):
     return f"https://console.aws.amazon.com/apigateway/main/publish/domain-names?domain={domain_name}&region={region}"
+
+def gen_domain_url(domain_name):
+    return f"https://{domain_name}"
 
 """
 {
