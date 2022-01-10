@@ -27,11 +27,9 @@ def safeval(string, no_underscores, no_uppercase):
     else:
         the_regex=NO_UNDERSCORE_LOWERCASE_NAME_REGEX
 
-    print(the_regex)
-    print(re.match(the_regex, string))
     if not re.match(the_regex, string):
-        print(string)
         string = safe_encode(string).lower()
+
     return string
     
 def process_repo_id(repo_id, no_underscores, no_uppercase):
@@ -177,6 +175,9 @@ class ExtensionHandler:
     def invoke_extension(self, arn, component_def, child_key, 
             progress_start, progress_end, object_name=None, 
             op=None, merge_props=False, links_prefix=None):
+
+        # if merge_props:
+        #     raise Exception("Cannot Merge Props")
         if child_key in ['ops', 'retries', 'props', 'links']:
             raise Exception(f"Child key cannot be set to {child_key}. Please choose another key")
         
@@ -190,6 +191,7 @@ class ExtensionHandler:
             "op": op,
             "s3_object_name": object_name,
             "pass_back_data": self.children.get(child_key),
+            # "prev_state": {"props": self.props.get(child_key)} if self.props.get(child_key) else None,
             "bucket": self.bucket,
             "repo_id": self.repo_id,
             "project_code": self.project_code

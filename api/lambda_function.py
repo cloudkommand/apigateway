@@ -530,7 +530,9 @@ def setup_route53_to_api(domain_names, prev_state, stage_name):
         update_api_mapping(domain_name, stage_name)
         remove_api_mappings(domain_name)
         if eh.error:
-            return 0    
+            return 0
+
+    eh.add_props{{"domain_names": domain_names}}
 
 @ext(handler=eh, op="handle_custom_domain")
 def handle_custom_domain(domain_name, op, integer):
