@@ -498,6 +498,9 @@ def confirm_stage_deployment():
     if status and status.startswith("Successfully deployed stage with deployment"):
         eh.add_log("Stage Deployed", {"stage_name": stage_name})
         eh.complete_op("confirm_stage_deployment")
+    elif status and status in ['Deployment attempt failed: Unable to deploy API because no routes exist in this API']:
+        eh.add_log("API Has No Routes", {"response": response}, True)
+        eh.perm_error("No Routes in API Definition", 75)
     else:
         eh.add_log("Stage Still Deploying", {"stage_name": stage_name})
         eh.declare_return(200, 75, error_code="stage_deploying")
