@@ -44,9 +44,10 @@ def lambda_handler(event, context):
         stage_variables = cdef.get("stage_variables")
         throttling_burst_limit = cdef.get("throttling_burst_limit")
         throttling_rate_limit = cdef.get("throttling_rate_limit")
-        domain_names = cdef.get("domain_names") or [cdef.get("domain_name")] or \
-            ([f"{component_safe_name(project_code, repo_id, cname)}.{cdef.get('base_domain')}"] 
+        domain_name = cdef.get("domain_name") or \
+            (f"{component_safe_name(project_code, repo_id, cname)}.{cdef.get('base_domain')}" 
             if cdef.get("base_domain") else None)
+        domain_names = cdef.get("domain_names") or ([domain_name] if domain_name else None)
         pass_back_data = event.get("pass_back_data", {})
         old_log_group_name = prev_state.get("props", {}).get("log_group_name")
         
@@ -139,7 +140,7 @@ def get_current_state(log_group_name, api_id, old_log_group_name, stage_name, re
         cursor = group_response.get("nextToken")
 
     mine = list(filter(lambda x: x.get("logGroupName") == log_group_name, log_groups))
-    print(f"mine = {mine}")
+    print(f"this_log_group = {mine}")
 
     if old_log_group_name and (log_group_name != old_log_group_name):
         log_groups = []
