@@ -535,7 +535,7 @@ def setup_route53_to_api(domain_names, prev_state):
 def handle_custom_domain(domain_name, op, integer):
     S3 = eh.props.get("S3", {})
     component_def = {
-        "domain_name": domain_name
+        "name": domain_name
     }
 
     function_arn = lambda_env('domain_name_extension_arn')

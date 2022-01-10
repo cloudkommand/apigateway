@@ -39,6 +39,9 @@ def lambda_handler(event, context):
         #     return creturn(200, 0, error=f"Must provide a role_arn. Please use either the role or role_arn keywords")
 
         domain_name = cdef.get("name") or form_domain(component_safe_name(project_code, repo_id, cname, no_underscores=False), cdef.get("base_domain"))
+        if not domain_name:
+            eh.add_log("No name or base_domain", {"component_def": cdef}, True)
+            eh.perm_error("No Domain Name Passed", 0)
         pass_back_data = event.get("pass_back_data", {})
         
         eh.add_props({"name": domain_name})
