@@ -104,7 +104,23 @@ def generate_openapi_definition(name, full_resources, cors_configuration, author
                     }
                 else:
                     new_data = {
+                        "parameters": [
+                            {
+                                "name": "proxy",
+                                "in": "path",
+                                "required": true,
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        ],
+                        "responses": {},
                         "x-amazon-apigateway-integration": remove_none_attributes({
+                            "responses": {
+                                "default": {
+                                    "statusCode": "200"
+                                }
+                            },
                             "uri": uri,
                             "httpMethod": k.upper(),
                             "requestParameters": {
