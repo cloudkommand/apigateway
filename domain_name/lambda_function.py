@@ -68,7 +68,7 @@ def lambda_handler(event, context):
 
             domain_name_arn = gen_apigateway_arn(domain_name, region)
 
-            get_domain_name(prev_state, domain_name, desired_config, desired_tls_config, tags)
+            get_domain_name(prev_state, domain_name, desired_config, desired_tls_config, tags, region)
             create_domain_name(domain_name, desired_config, desired_tls_config, tags, region)
             update_domain_name(domain_name, desired_config, desired_tls_config, region)
             remove_tags(domain_name_arn)
@@ -128,7 +128,7 @@ def get_acm_cert(domain_name, region):
     eh.add_links({"ACM Certificate": gen_certificate_link(certificate_arn, region)})
 
 @ext(handler=eh, op="get_domain_name")
-def get_domain_name(prev_state, domain_name, desired_config, desired_tls_config, tags):
+def get_domain_name(prev_state, domain_name, desired_config, desired_tls_config, tags, region):
     if prev_state and prev_state.get("props", {}).get("name"):
         old_domain_name = prev_state["props"]["name"]
         if old_domain_name and (old_domain_name != domain_name):
@@ -156,6 +156,12 @@ def get_domain_name(prev_state, domain_name, desired_config, desired_tls_config,
                     eh.add_op("update_domain_name")
                     match = False
         if match:
+            eh.add_props({
+                "hosted_zone_id": config.get("HostedZoneId"),
+                "api_gateway_domain_name": config.get("ApiGatewayDomainName")
+            })
+            eh.add_links({"AWS Custom Domain Name": gen_custom_domain_link(domain_name, region),
+            "URL": gen_domain_url(domain_name)})
             eh.add_log("Domain Update Unncessary", {"config": config, "desired_config": desired_config})
 
         current_tags = response.get("Tags") or {}
