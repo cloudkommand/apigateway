@@ -9,16 +9,15 @@ from extutil import remove_none_attributes, account_context, ExtensionHandler, \
     ext, component_safe_name, handle_common_errors, lambda_env
 from util import get_default_cors_configuration, generate_openapi_definition
 
-
-
 eh = ExtensionHandler()
+
 # def validate_state(state):
 # "prev_state": prev_state,
 # "component_def": component_def, RENDERED
 # "op": op,
 # "s3_object_name": object_name,
 # "pass_back_data": pass_back_data
-#     jsonschema.validate()
+
 apiv2 = boto3.client("apigatewayv2")
 
 def lambda_handler(event, context):
