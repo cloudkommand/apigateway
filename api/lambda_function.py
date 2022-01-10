@@ -71,7 +71,7 @@ def lambda_handler(event, context):
         update_stage(stage_variables, throttling_burst_limit, throttling_rate_limit)
         delete_stage()
         confirm_stage_deployment()
-        setup_route53_to_api(domain_names, prev_state)
+        setup_route53_to_api(domain_names, prev_state, stage_name)
         delete_api()
         remove_cloudwatch_log_group()
 
@@ -507,7 +507,7 @@ def confirm_stage_deployment():
         eh.declare_return(200, 75, error_code="stage_deploying")
 
 @ext(handler=eh, op="setup_route53_to_api")
-def setup_route53_to_api(domain_names, prev_state):
+def setup_route53_to_api(domain_names, prev_state, stage_name):
     
     #Erase all old status, we start this from the beginning every time
     for op in ["handle_custom_domain", "get_api_mapping", "create_api_mapping", "update_api_mapping", "remove_api_mappings"]:
@@ -526,8 +526,8 @@ def setup_route53_to_api(domain_names, prev_state):
             op = "remove"
         handle_custom_domain(domain_name, op, (i+1))
         get_api_mapping(domain_name, domain_names)
-        create_api_mapping(domain_name)
-        update_api_mapping(domain_name)
+        create_api_mapping(domain_name, stage_name)
+        update_api_mapping(domain_name, stage_name)
         remove_api_mappings(domain_name)
         if eh.error:
             return 0    
@@ -571,12 +571,13 @@ def get_api_mapping(domain_name, desired_domain_names):
         print(f"Nothing to do for domain_name {domain_name}")
 
 @ext(handler=eh, op="create_api_mapping")
-def create_api_mapping(domain_name):
+def create_api_mapping(domain_name, stage_name):
 
     try:
         response = apiv2.create_api_mapping(
             ApiId=eh.props['api_id'],
-            DomainName=domain_name
+            DomainName=domain_name,
+            Stage=stage_name
         )
 
         api_mapping_props = eh.props.get("api_mappings") or {}
@@ -587,13 +588,14 @@ def create_api_mapping(domain_name):
         handle_common_errors(e, eh, "Create API Mapping Failed", 85)
 
 @ext(handler=eh, op="update_api_mapping")
-def update_api_mapping(domain_name):
+def update_api_mapping(domain_name, stage_name):
 
     try:
         response = apiv2.update_api_mapping(
             ApiId=eh.props['api_id'],
             ApiMappingId=eh.ops['update_api_mapping'],
-            DomainName=domain_name
+            DomainName=domain_name,
+            Stage=stage_name
         )
 
         api_mapping_props = eh.props.get("api_mappings") or {}
