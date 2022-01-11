@@ -531,21 +531,22 @@ def setup_route53_to_api(domain_names, stage_name, op):
             continue
 
         if f"initiated {domain_name}" not in eh.state:
-            eh.add_op("handle_custom_domain")
-            eh.add_op("handle_route53_alias")
             if domain_name in domain_names and op == "upsert":
-                eh.add_op("get_api_mapping")
                 r53op = "upsert"
+                eh.add_op("get_api_mapping")
             else:
                 r53op = "remove"
+
+            eh.add_op("handle_custom_domain", r53op)
+            eh.add_op("handle_route53_alias", r53op)
             eh.add_state({f"initiated {domain_name}": True})
 
-        handle_custom_domain(domain_name, r53op, (i+1))
+        handle_custom_domain(domain_name, (i+1))
         get_api_mapping(domain_name, domain_names)
         create_api_mapping(domain_name, stage_name)
         update_api_mapping(domain_name, stage_name)
         remove_api_mappings(domain_name)
-        handle_route53_alias(domain_name, r53op, i)
+        handle_route53_alias(domain_name, i)
         if eh.error:
             return 0
         eh.add_op("setup_route53_to_api", to_deploy_domain_names[1:])
@@ -553,7 +554,7 @@ def setup_route53_to_api(domain_names, stage_name, op):
     eh.add_props({"domain_names": domain_names})
 
 @ext(handler=eh, op="handle_custom_domain")
-def handle_custom_domain(domain_name, op, integer):
+def handle_custom_domain(domain_name, integer):
 
     component_def = {
         "name": domain_name
@@ -564,7 +565,9 @@ def handle_custom_domain(domain_name, op, integer):
     proceed = eh.invoke_extension(
         arn=function_arn, component_def=component_def, 
         child_key=f"Domain {integer}", progress_start=85, progress_end=100,
-        merge_props=False, op=op, links_prefix=f"Domain {integer}")
+        merge_props=False, op=eh.ops["handle_custom_domain"], 
+        links_prefix=f"Domain {integer}"
+    )
 
     print(f"Post invoke, extension props = {eh.props}")
     # if proceed:
@@ -645,7 +648,7 @@ def remove_api_mappings(domain_name):
                 return 0
 
 @ext(handler=eh, op="handle_route53_alias")
-def handle_route53_alias(domain_name, op, integer):
+def handle_route53_alias(domain_name, integer):
     print(f"inside alias, props = {eh.props}")
     domain = eh.props.get(f"Domain {integer}", {})
 
@@ -660,7 +663,8 @@ def handle_route53_alias(domain_name, op, integer):
     proceed = eh.invoke_extension(
         arn=function_arn, component_def=component_def, 
         child_key=f"Route53 {integer}", progress_start=85, progress_end=95,
-        merge_props=False, op=op, links_prefix=f"Route53 {integer}"
+        merge_props=False, op=eh.ops['handle_route53_alias'], 
+        links_prefix=f"Route53 {integer}"
     )   
 
     # if proceed:
