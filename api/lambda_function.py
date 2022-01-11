@@ -55,11 +55,17 @@ def lambda_handler(event, context):
             pass
         elif event.get("op") == "upsert":
             eh.add_op("get_current_state")
-            if domain_names:
-                eh.add_op("setup_route53_to_api")
+            previous_domain_names = prev_state.get("props", {}).get("domain_names", [])
+            all_domain_names = list(set(domain_names+previous_domain_names))
+            print(f"previous_domain_names = {previous_domain_names}")
+            print(f"desired domain_names = {domain_names}")
+            if all_domain_names:
+                eh.add_state({"all_domain_names": all_domain_names})
+                eh.add_op("setup_route53_to_api", all_domain_names)
         elif event.get("op") == "delete":
             eh.add_op("delete_api", api_id)
             if domain_names:
+                eh.add_state({"all_domain_names": domain_names})
                 eh.add_op("setup_route53_to_api")
         
         get_current_state(log_group_name, api_id, old_log_group_name, stage_name, region)
@@ -71,7 +77,7 @@ def lambda_handler(event, context):
         update_stage(stage_variables, throttling_burst_limit, throttling_rate_limit)
         delete_stage()
         confirm_stage_deployment()
-        setup_route53_to_api(domain_names, prev_state, stage_name)
+        setup_route53_to_api(domain_names, stage_name, event.get("op"))
         delete_api()
         remove_cloudwatch_log_group()
 
@@ -507,36 +513,48 @@ def confirm_stage_deployment():
         eh.declare_return(200, 75, error_code="stage_deploying")
 
 @ext(handler=eh, op="setup_route53_to_api")
-def setup_route53_to_api(domain_names, prev_state, stage_name):
+def setup_route53_to_api(domain_names, stage_name, op):
     
     #Erase all old status, we start this from the beginning every time
-    for op in ["handle_custom_domain", "get_api_mapping", "create_api_mapping", "update_api_mapping", "remove_api_mappings"]:
-        eh.complete_op(op)
+    # for op in ["handle_custom_domain", "get_api_mapping", "create_api_mapping", "update_api_mapping", "remove_api_mappings"]:
+    #     eh.complete_op(op)
+    print(f"State = {eh.state}")
+    all_domain_names = eh.state['all_domain_names']
+    # new = False
+    # if "initiated_route53" not in eh.state:
+    #     new = True
+    #     eh.state({"initiated_route53": True})
 
-    previous_domain_names = prev_state.get("props", {}).get("domain_names", [])
-    all_domain_names = list(set(domain_names+previous_domain_names))
-    print(f"previous_domain_names = {previous_domain_names}")
-    print(f"desired domain_names = {domain_names}")
     for i, domain_name in enumerate(all_domain_names):
-        eh.add_op("handle_custom_domain")
-        if domain_name in domain_names:
-            eh.add_op("get_api_mapping")
-            op = "upsert"
-        else:
-            op = "remove"
-        handle_custom_domain(domain_name, op, (i+1))
+        to_deploy_domain_names = eh.ops['setup_route53_to_api']
+        if domain_name not in to_deploy_domain_names:
+            continue
+
+        if f"initiated {domain_name}" not in eh.state:
+            eh.add_op("handle_custom_domain")
+            eh.add_op("handle_route53_alias")
+            if domain_name in domain_names and op == "upsert":
+                eh.add_op("get_api_mapping")
+                r53op = "upsert"
+            else:
+                r53op = "remove"
+            eh.add_state({f"initiated {domain_name}": True})
+
+        handle_custom_domain(domain_name, r53op, (i+1))
         get_api_mapping(domain_name, domain_names)
         create_api_mapping(domain_name, stage_name)
         update_api_mapping(domain_name, stage_name)
         remove_api_mappings(domain_name)
+        handle_route53_alias(domain_name, r53op, i)
         if eh.error:
             return 0
-
+        eh.add_op("setup_route53_to_api", to_deploy_domain_names[1:])
+        
     eh.add_props({"domain_names": domain_names})
 
 @ext(handler=eh, op="handle_custom_domain")
 def handle_custom_domain(domain_name, op, integer):
-    S3 = eh.props.get("S3", {})
+
     component_def = {
         "name": domain_name
     }
@@ -624,3 +642,24 @@ def remove_api_mappings(domain_name):
             else:
                 eh.add_log("API Mapping Not found", {"id": api_mapping_id})
                 return 0
+
+@ext(handler=eh, op="handle_route53_alias")
+def handle_route53_alias(domain_name, op, integer):
+    domain = eh.props.get(f"Domain {integer}", {})
+
+    component_def = {
+        "target_api_hosted_zone_id": domain.get("hosted_zone_id"),
+        "target_api_domain_name": domain.get("api_gateway_domain_name")
+    }
+
+    function_arn = lambda_env('route53_extension_arn')
+
+    proceed = eh.invoke_extension(
+        arn=function_arn, component_def=component_def, 
+        child_key=f"Route53 {integer}", progress_start=85, progress_end=95,
+        merge_props=False, op=op, links_prefix=f"Route53 {integer}"
+    )   
+
+    # if proceed:
+    #     eh.add_links({"Website URL": f'http://{eh.props["Route53"].get("domain")}'})
+    print(f"proceed = {proceed}")
