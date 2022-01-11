@@ -350,6 +350,7 @@ def ext(f=None, handler=None, op=None, complete_op=True):
     import functools
     
     if not f:
+        print(f"Before partial")
         return functools.partial(
             ext,
             handler=handler,
@@ -373,7 +374,9 @@ def ext(f=None, handler=None, op=None, complete_op=True):
 
         result = f(*args, **kwargs)
         if complete_op and not handler.ret:
+            print("right before complete op")
             handler.complete_op(op)
+            print("right after complete op")
         return result
 
     return the_wrapper_around_the_original_function
