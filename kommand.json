@@ -185,12 +185,12 @@
                     },
                     "base_domain": {
                         "type": "string",
-                        "description": "The (singular) domain name to point at this API"
+                        "description": "If you want a domain that will not clash with other projects/components, pass a base_domain and a unique subdomain will be added to it"
                     }
                 },
                 "required": [
                     "resources"
-                ]
+                ] 
             },
             "props": {
                 "log_group_arn": {

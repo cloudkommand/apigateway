@@ -597,7 +597,11 @@ def create_api_mapping(domain_name, stage_name):
         eh.add_props({"api_mappings": api_mapping_props})
         eh.add_log("Created API Mapping", response)
     except ClientError as e:
-        handle_common_errors(e, eh, "Create API Mapping Failed", 85)
+        if str(e) == "Create API Mapping Failed: An error occurred (ConflictException) when calling the CreateApiMapping operation: ApiMapping key already exists for this domain name":
+            eh.add_log("Conflict, cannot Create API Mapping", {"api_id": eh.props['api_id'], "domain_name": domain_name, "stage_name": stage_name})
+            eh.perm_error("API Mapping Already Exists for this Domain", {"api_id": eh.props['api_id'], "domain_name": domain_name, "stage_name": stage_name})
+        else:
+            handle_common_errors(e, eh, "Create API Mapping Failed", 85)
 
 @ext(handler=eh, op="update_api_mapping")
 def update_api_mapping(domain_name, stage_name):
