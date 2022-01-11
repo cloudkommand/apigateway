@@ -546,7 +546,7 @@ def setup_route53_to_api(domain_names, stage_name, op):
         create_api_mapping(domain_name, stage_name)
         update_api_mapping(domain_name, stage_name)
         remove_api_mappings(domain_name)
-        handle_route53_alias(domain_name, i)
+        handle_route53_alias(domain_name, (i+1))
         if eh.error:
             return 0
         eh.add_op("setup_route53_to_api", to_deploy_domain_names[1:])
