@@ -56,7 +56,7 @@ def lambda_handler(event, context):
         elif event.get("op") == "upsert":
             eh.add_op("get_current_state")
             previous_domain_names = prev_state.get("props", {}).get("domain_names", [])
-            all_domain_names = list(set(domain_names+previous_domain_names))
+            all_domain_names = sorted(list(set(domain_names+previous_domain_names)), key=lambda x:x in domain_names, reverse=True)
             print(f"previous_domain_names = {previous_domain_names}")
             print(f"desired domain_names = {domain_names}")
             if all_domain_names:
@@ -64,8 +64,12 @@ def lambda_handler(event, context):
                 eh.add_op("setup_route53_to_api", all_domain_names)
         elif event.get("op") == "delete":
             eh.add_op("delete_api", api_id)
-            if domain_names:
-                eh.add_state({"all_domain_names": domain_names})
+            previous_domain_names = prev_state.get("props", {}).get("domain_names", [])
+            all_domain_names = sorted(list(set(domain_names+previous_domain_names)), key=lambda x:x in domain_names, reverse=True)
+            print(f"previous_domain_names = {previous_domain_names}")
+            print(f"desired domain_names = {domain_names}")
+            if all_domain_names:
+                eh.add_state({"all_domain_names": all_domain_names})
                 eh.add_op("setup_route53_to_api", all_domain_names)
         
         get_current_state(log_group_name, api_id, old_log_group_name, stage_name, region)
