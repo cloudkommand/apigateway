@@ -566,6 +566,7 @@ def handle_custom_domain(domain_name, op, integer):
         child_key=f"Domain {integer}", progress_start=85, progress_end=100,
         merge_props=False, op=op, links_prefix=f"Domain {integer}")
 
+    print(f"Post invoke, extension props = {eh.props}")
     # if proceed:
     #     eh.add_links({"Website URL": f'http://{eh.props["Route53"].get("domain")}'})
     # print(f"proceed = {proceed}")       
