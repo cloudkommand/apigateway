@@ -648,6 +648,7 @@ def handle_route53_alias(domain_name, op, integer):
     domain = eh.props.get(f"Domain {integer}", {})
 
     component_def = {
+        "domain": domain_name,
         "target_api_hosted_zone_id": domain.get("hosted_zone_id"),
         "target_api_domain_name": domain.get("api_gateway_domain_name")
     }
