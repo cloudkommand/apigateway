@@ -319,13 +319,13 @@ class ExtensionHandler:
             pass_back_data['retries'] = self.retries
             this_retries = pass_back_data['retries'].get(self.error, 0) + 1
             pass_back_data['retries'][self.error] = this_retries
-            pass_back_data['last_retry'] = self.error
             pass_back_data['props'] = self.props
             pass_back_data['links'] = self.links
             pass_back_data['state'] = self.state
             if self.children:
                 pass_back_data.update(self.children)
             if this_retries < self.max_retries_per_error_code and self.callback:
+                pass_back_data['last_retry'] = self.error
                 self.error = None
                 self.error_details = None
                 if not self.callback_sec:
