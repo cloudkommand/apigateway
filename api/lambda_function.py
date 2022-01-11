@@ -66,7 +66,7 @@ def lambda_handler(event, context):
             eh.add_op("delete_api", api_id)
             if domain_names:
                 eh.add_state({"all_domain_names": domain_names})
-                eh.add_op("setup_route53_to_api")
+                eh.add_op("setup_route53_to_api", all_domain_names)
         
         get_current_state(log_group_name, api_id, old_log_group_name, stage_name, region)
         create_cloudwatch_log_group(region, account_number)
