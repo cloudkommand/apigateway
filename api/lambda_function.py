@@ -216,10 +216,7 @@ def get_current_state(log_group_name, api_id, old_log_group_name, stage_name, re
 
     else:
         eh.add_op("create_api")
-        eh.add_op("create_stage", stage_name)
-
-    eh.complete_op("get_current_state")
-    
+        eh.add_op("create_stage", stage_name)    
 
 @ext(handler=eh, op="create_log_group")
 def create_cloudwatch_log_group(region, account_number):
@@ -246,8 +243,6 @@ def create_cloudwatch_log_group(region, account_number):
             eh.add_log("Log Group Create Error", {"error", str(e)}, is_error=True)
             # eh.declare_return()
 
-    eh.complete_op("create_log_group")
-
 @ext(handler=eh, op="remove_log_group")
 def remove_cloudwatch_log_group():
     logs_client = boto3.client("logs")
@@ -261,8 +256,6 @@ def remove_cloudwatch_log_group():
         eh.add_log("Deleted Log Group", logs_response)
     except:
         eh.add_log("Log Group Doesn't Exist", {"log_group_name": log_group_name})
-
-    eh.complete_op("remove_log_group")
 
 @ext(handler=eh, op="create_api")
 def create_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, custom_domain_name=None):
@@ -286,7 +279,6 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
             eh.retry_error(str(ex), 15)
             return 0
 
-    eh.complete_op("create_api")
     eh.add_props({
         "api_id": response.get("ApiId"),
         "api_endpoint": response.get("ApiEndpoint"),
@@ -328,7 +320,6 @@ def update_api(name, resources, cors_configuration, authorizers, account_number,
             eh.declare_return(200, 15, error_code=str(ex))
             return 0
 
-    eh.complete_op("update_api")
     # eh.add_op("update_stage")
     eh.add_props({
         "api_id": response.get("ApiId"),
@@ -369,7 +360,6 @@ def delete_api():
         # eh.declare_return()
         return 0
 
-    eh.complete_op("delete_api")
     eh.declare_return(200, 100, success=True)
 
 @ext(handler=eh, op="add_lambda_permissions")
@@ -393,8 +383,6 @@ def add_lambda_permissions(account_number):
                 pass
             else:
                 raise e
-
-    eh.complete_op("add_lambda_permissions")
 
 @ext(handler=eh, op="create_stage")
 def create_stage(stage_variables, throttling_burst_limit, throttling_rate_limit):
@@ -436,7 +424,6 @@ def create_stage(stage_variables, throttling_burst_limit, throttling_rate_limit)
     })
 
     eh.add_op("confirm_stage_deployment", stage_name)
-    eh.complete_op("create_stage")
 
 @ext(handler=eh, op="update_stage")
 def update_stage(stage_variables, throttling_burst_limit, throttling_rate_limit):
@@ -477,7 +464,6 @@ def update_stage(stage_variables, throttling_burst_limit, throttling_rate_limit)
     })
 
     eh.add_op("confirm_stage_deployment", stage_name)
-    eh.complete_op("update_stage")
 
 @ext(handler=eh, op="delete_stage")
 def delete_stage():
@@ -492,7 +478,6 @@ def delete_stage():
             eh.add_log(f"Unable to Delete Stage {stage_name}", {"error": e}, is_error=True)
             print(e)
 
-    eh.complete_op("delete_stage")
 
 @ext(handler=eh, op="confirm_stage_deployment")
 def confirm_stage_deployment():
@@ -504,7 +489,6 @@ def confirm_stage_deployment():
     status = response.get("LastDeploymentStatusMessage")
     if status and status.startswith("Successfully deployed stage with deployment"):
         eh.add_log("Stage Deployed", {"stage_name": stage_name})
-        eh.complete_op("confirm_stage_deployment")
     elif status and status in ['Deployment attempt failed: Unable to deploy API because no routes exist in this API']:
         eh.add_log("API Has No Routes", {"response": response}, True)
         eh.perm_error("No Routes in API Definition", 75)

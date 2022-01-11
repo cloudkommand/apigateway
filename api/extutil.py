@@ -244,7 +244,7 @@ class ExtensionHandler:
                 if not success:
                     pass_back_data = result.get("pass_back_data")
                     self.children[child_key] = pass_back_data
-                    self.retry_error(child_key, true_progress, callback_sec=result['callback_sec'])
+                    self.retry_error(f'{child_key} {pass_back_data.get("last_retry")}', true_progress, callback_sec=result['callback_sec'])
                     proceed=False
 
                 else:
@@ -319,6 +319,7 @@ class ExtensionHandler:
             pass_back_data['retries'] = self.retries
             this_retries = pass_back_data['retries'].get(self.error, 0) + 1
             pass_back_data['retries'][self.error] = this_retries
+            pass_back_data['last_retry'] = self.error
             pass_back_data['props'] = self.props
             pass_back_data['links'] = self.links
             pass_back_data['state'] = self.state
@@ -350,7 +351,6 @@ def ext(f=None, handler=None, op=None, complete_op=True):
     import functools
     
     if not f:
-        print(f"Before partial")
         return functools.partial(
             ext,
             handler=handler,
@@ -374,9 +374,7 @@ def ext(f=None, handler=None, op=None, complete_op=True):
 
         result = f(*args, **kwargs)
         if complete_op and not handler.ret:
-            print("right before complete op")
             handler.complete_op(op)
-            print("right after complete op")
         return result
 
     return the_wrapper_around_the_original_function
