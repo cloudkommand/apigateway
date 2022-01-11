@@ -645,6 +645,7 @@ def remove_api_mappings(domain_name):
 
 @ext(handler=eh, op="handle_route53_alias")
 def handle_route53_alias(domain_name, op, integer):
+    print(f"inside alias, props = {props}")
     domain = eh.props.get(f"Domain {integer}", {})
 
     component_def = {
