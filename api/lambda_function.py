@@ -519,7 +519,7 @@ def setup_route53_to_api(domain_names, stage_name, op):
                 r53op = "upsert"
                 eh.add_op("get_api_mapping")
             else:
-                r53op = "remove"
+                r53op = "delete"
 
             eh.add_op("handle_custom_domain", r53op)
             eh.add_op("handle_route53_alias", r53op)
