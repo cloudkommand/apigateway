@@ -166,6 +166,10 @@
                         "type": "boolean",
                         "description": "If true (and cors_configuration not specified), sets the cors configuration to a set of default values intended to service basic APIs being hit by the browser. See http://NotHereYet for details"
                     },
+                    "tags": {
+                        "type": "object",
+                        "description": "A set of key-value pairs to attach to this API Gateway as tags"
+                    },
                     "name": {
                         "type": "string",
                         "description": "The name of the API Gateway. Will be auto-generated if not specified"
@@ -185,7 +189,7 @@
                     },
                     "base_domain": {
                         "type": "string",
-                        "description": "If you want a domain that will not clash with other projects/components, pass a base_domain and a unique subdomain will be added to it"
+                        "description": "Pass a base domain to get a unique domain through a generated subdomain"
                     }
                 },
                 "required": [
@@ -204,6 +208,10 @@
                 "api_id": {
                     "type": "string",
                     "description": "The ID of this API. Appears in the default HTTP endpoint"
+                },
+                "arn": {
+                    "type": "string",
+                    "description": "The ARN for this API"
                 },
                 "name": {
                     "type": "string",
@@ -240,6 +248,58 @@
                     ],
                     "Resource": "*"
                 }]
+            },
+            "input": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The desired domain name"
+                    },
+                    "base_domain": {
+                        "type": "string",
+                        "description": "Pass a base domain to get a unique domain name through a generated subdomain"
+                    },
+                    "truststore_uri": {
+                        "type": "string",
+                        "description": "An Amazon S3 URL that specifies the truststore for mutual TLS authentication"
+                    },
+                    "truststore_version": {
+                        "type": "string",
+                        "description": "The version of the S3 object that contains your truststore. To use this parameter, the S3 Bucket must have versioning enabled."
+                    },
+                    "tags": {
+                        "type": "object",
+                        "description": "A set of key-value pairs to attach to this API Gateway custom domain name as tags"
+                    }
+                },
+                "oneOf": [{
+                    "required": [
+                        "name"
+                    ]
+                }, {
+                    "required": [
+                        "base_domain"
+                    ]
+                }]
+            },
+            "props": {
+                "name": {
+                    "type": "string",
+                    "description": "The domain name (possibly generated)"
+                },
+                "certificate_arn": {
+                    "type": "string",
+                    "description": "The ARN of the ACM certificate that is used when hitting this domain name"
+                },
+                "hosted_zone_id": {
+                    "type": "string",
+                    "description": "The hosted zone ID of this domain name"
+                },
+                "api_gateway_domain_name": {
+                    "type": "string",
+                    "description": "An AWS-internal domain name for the API"
+                }
             }
         }
     },

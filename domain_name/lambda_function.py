@@ -267,7 +267,7 @@ def add_tags(domain_name_arn):
         eh.add_log("Tags Added", {"tags": tags})
 
     except ClientError as e:
-        handle_common_errors(e, eh, "Add Tags Failed", 70, ['InvalidParameterValueException'])
+        handle_common_errors(e, eh, "Add Tags Failed", 85, ['InvalidParameterValueException'])
         
 @ext(handler=eh, op="remove_tags")
 def remove_tags(domain_name_arn):
@@ -280,7 +280,7 @@ def remove_tags(domain_name_arn):
         eh.add_log("Tags Removed", {"tags": eh.ops['remove_tags']})
 
     except botocore.exceptions.ClientError as e:
-        handle_common_errors(e, eh, "Remove Tags Failed", 85, ['InvalidParameterValueException'])
+        handle_common_errors(e, eh, "Remove Tags Failed", 70, ['InvalidParameterValueException'])
 
 def gen_apigateway_arn(domain_name, region):
     return f"arn:aws:apigateway:{region}::/domainnames/{domain_name}"
