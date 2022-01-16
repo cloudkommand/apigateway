@@ -13,6 +13,8 @@
                     "Effect": "Allow",
                     "Action": [
                         "lambda:AddPermission",
+                        "lambda:GetFunction",
+                        "lambda:InvokeFunction",
                         "logs:*",
                         "apigateway:PUT",
                         "apigateway:POST",
@@ -22,6 +24,10 @@
                     ],
                     "Resource": "*"
                 }]
+            },
+            "environment_variables": {
+                "domain_name_extension_arn": "@domain_name:props.function_arn",
+                "route53_extension_arn": "@route53.record:props.function_arn"
             },
             "input": {
                 "type": "object",
@@ -160,6 +166,10 @@
                         "type": "boolean",
                         "description": "If true (and cors_configuration not specified), sets the cors configuration to a set of default values intended to service basic APIs being hit by the browser. See http://NotHereYet for details"
                     },
+                    "tags": {
+                        "type": "object",
+                        "description": "A set of key-value pairs to attach to this API Gateway as tags"
+                    },
                     "name": {
                         "type": "string",
                         "description": "The name of the API Gateway. Will be auto-generated if not specified"
@@ -168,11 +178,23 @@
                         "type": "string",
                         "description": "The name of the stage, this is added to the URL of the API for all endpoints",
                         "default": "live"
+                    },
+                    "domain_names": {
+                        "type": "array",
+                        "description": "A list of domain names to point at this API"
+                    },
+                    "domain_name": {
+                        "type": "string",
+                        "description": "The (singular) domain name to point at this API"
+                    },
+                    "base_domain": {
+                        "type": "string",
+                        "description": "Pass a base domain to get a unique domain through a generated subdomain"
                     }
                 },
                 "required": [
                     "resources"
-                ]
+                ] 
             },
             "props": {
                 "log_group_arn": {
@@ -187,6 +209,10 @@
                     "type": "string",
                     "description": "The ID of this API. Appears in the default HTTP endpoint"
                 },
+                "arn": {
+                    "type": "string",
+                    "description": "The ARN for this API"
+                },
                 "name": {
                     "type": "string",
                     "description": "The name of this API, as it appears in the console"
@@ -198,8 +224,94 @@
                 "stage_name": {
                     "type": "string",
                     "description": "The name of the deployed stage"
+                },
+                "Route53 (num)": {
+                    "type": "object",
+                    "description": "Contains the properties of any route53.record components deployed, with num corresponding to the order within the list of domain_names, counting up from 1"
+                },
+                "Domain (num)": {
+                    "type": "object",
+                    "description": "Contains the properties of any domain_name components deployed, with num corresponding to the order within the list of domain_names, counting up from 1"
                 }
             }
+        },
+        "domain_name": {
+            "type": "ext",
+            "displayname": "CK API Gateway Custom Domain Name",
+            "description": "Deploys an AWS APi Gateway Custom Domain Name. Custom Domain Names are used to route calls from Route53 to an API Gateway",
+            "cloud": "AWS",
+            "resources": ["AWS::apigateway::customdomainname"],
+            "policy": {
+                "Version": "2012-10-17",
+                "Statement": [{
+                    "Sid": "Vis",
+                    "Effect": "Allow",
+                    "Action": [
+                        "apigateway:PUT",
+                        "apigateway:POST",
+                        "apigateway:PATCH",
+                        "apigateway:DELETE",
+                        "apigateway:GET",
+                        "acm:ListCertificates"
+                    ],
+                    "Resource": "*"
+                }]
+            },
+            "props": {
+                "name": {
+                    "type": "string",
+                    "description": "The domain name (possibly generated)"
+                },
+                "certificate_arn": {
+                    "type": "string",
+                    "description": "The ARN of the ACM certificate that is used when hitting this domain name"
+                },
+                "hosted_zone_id": {
+                    "type": "string",
+                    "description": "The hosted zone ID of this domain name"
+                },
+                "api_gateway_domain_name": {
+                    "type": "string",
+                    "description": "An AWS-internal domain name for the API"
+                }
+            },
+            "input": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The desired domain name"
+                    },
+                    "base_domain": {
+                        "type": "string",
+                        "description": "Pass a base domain to get a unique domain name through a generated subdomain"
+                    },
+                    "truststore_uri": {
+                        "type": "string",
+                        "description": "An Amazon S3 URL that specifies the truststore for mutual TLS authentication"
+                    },
+                    "truststore_version": {
+                        "type": "string",
+                        "description": "The version of the S3 object that contains your truststore. To use this parameter, the S3 Bucket must have versioning enabled."
+                    },
+                    "tags": {
+                        "type": "object",
+                        "description": "A set of key-value pairs to attach to this API Gateway custom domain name as tags"
+                    }
+                },
+                "oneOf": [{
+                    "required": [
+                        "name"
+                    ]
+                }, {
+                    "required": [
+                        "base_domain"
+                    ]
+                }]
+            }
         }
+    },
+    "repos": {
+        "route53": "https://github.com/cloudkommand/route53"
     }
 }

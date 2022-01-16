@@ -92,15 +92,31 @@ def generate_openapi_definition(name, full_resources, cors_configuration, author
                 if function_name:
                     lambda_permissions.add(function_name)
 
+                # if integration_type != "http_proxy":
                 new_data = {
-                    "x-amazon-apigateway-integration": {
+                    "x-amazon-apigateway-integration": remove_none_attributes({
                         "uri": uri,
-                        "payloadFormatVersion": payload_version,
+                        "payloadFormatVersion": payload_version if function_name else "1.0",
                         "httpMethod": "POST" if function_name else k.upper(),
                         "type": integration_type,
                         "timeoutInMillis": 29000
-                    }
+                    })
                 }
+                # else:
+                #     new_data = {
+                #         "x-amazon-apigateway-integration": remove_none_attributes({
+                #             "payloadFormatVersion" : "1.0",
+                #             "connectionType" : "INTERNET",
+                #             "uri": uri,
+                #             "httpMethod": k.upper(),
+                #             # "requestParameters": {
+                #             #     "integration.request.path.proxy": "method.request.path.proxy"
+                #             # },
+                #             # "passthroughBehavior": "when_no_match",
+                #             "type": integration_type,
+                #             "timeoutInMillis": 29000
+                #         })
+                #     }
 
                 if auth_name:
                     new_data['security'] = [{auth_name: []}]
