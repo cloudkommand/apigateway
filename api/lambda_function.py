@@ -57,21 +57,18 @@ def lambda_handler(event, context):
         elif event.get("op") == "upsert":
             eh.add_op("get_current_state")
             previous_domain_names = prev_state.get("props", {}).get("domain_names", [])
-            all_domain_names = sorted(list(set(domain_names+previous_domain_names)), key=lambda x:x in domain_names, reverse=True)
+            domains_to_add = [d for d in previous_domain_names if d not in domain_names]
+            all_domain_names = domain_names+domains_to_add
             print(f"previous_domain_names = {previous_domain_names}")
-            print(f"desired domain_names = {domain_names}")
+            print(f"all domain_names = {all_domain_names}")
             if all_domain_names:
                 eh.add_state({"all_domain_names": all_domain_names})
                 eh.add_op("setup_route53_to_api", all_domain_names)
         elif event.get("op") == "delete":
             eh.add_op("delete_api", api_id)
-            previous_domain_names = prev_state.get("props", {}).get("domain_names", [])
-            all_domain_names = sorted(list(set(domain_names+previous_domain_names)), key=lambda x:x in domain_names, reverse=True)
-            print(f"previous_domain_names = {previous_domain_names}")
-            print(f"desired domain_names = {domain_names}")
             if all_domain_names:
-                eh.add_state({"all_domain_names": all_domain_names})
-                eh.add_op("setup_route53_to_api", all_domain_names)
+                eh.add_state({"all_domain_names": domain_names})
+                eh.add_op("setup_route53_to_api", domain_names)
         
         get_current_state(log_group_name, api_id, old_log_group_name, stage_name, region, tags)
         create_cloudwatch_log_group(region, account_number)
