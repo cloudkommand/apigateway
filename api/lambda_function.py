@@ -57,8 +57,8 @@ def lambda_handler(event, context):
         elif event.get("op") == "upsert":
             eh.add_op("get_current_state")
             previous_domain_names = prev_state.get("props", {}).get("domain_names", [])
-            domains_to_add = [d for d in previous_domain_names if d not in domain_names]
-            all_domain_names = domain_names+domains_to_add
+            domains_to_remove = [d for d in previous_domain_names if d not in domain_names]
+            all_domain_names = domain_names+domains_to_remove
             print(f"previous_domain_names = {previous_domain_names}")
             print(f"all domain_names = {all_domain_names}")
             if all_domain_names:
@@ -66,7 +66,7 @@ def lambda_handler(event, context):
                 eh.add_op("setup_route53_to_api", all_domain_names)
         elif event.get("op") == "delete":
             eh.add_op("delete_api", api_id)
-            if all_domain_names:
+            if domain_names:
                 eh.add_state({"all_domain_names": domain_names})
                 eh.add_op("setup_route53_to_api", domain_names)
         
