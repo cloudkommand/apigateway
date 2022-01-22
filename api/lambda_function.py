@@ -366,12 +366,15 @@ def delete_api():
         )
         eh.add_log("Deleted API", response)
 
-    except Exception as ex:
-        eh.add_log("Failed to Delete API", {"error", str(ex)}, is_error=True)
-        # eh.declare_return()
-        return 0
+    except ClientError as e:
+        if e.response['Error']['Code'] == "NotFoundException":
+            eh.add_log("No API to delete", {"api_id": api_id})
+        elif 'Please remove all API mappings for the API from your custom domain names.' in str(e):
+            eh.add_log(f"Cannot delete API, mappings still present", {"api_id": api_id}, is_error=True)
+            eh.perm_error("API mappings still present for this API", 60)
+        else:
+            handle_common_errors(e, eh, "Delete api failed", 60)
 
-    eh.declare_return(200, 100, success=True)
 
 @ext(handler=eh, op="add_lambda_permissions")
 def add_lambda_permissions(account_number):
@@ -634,7 +637,7 @@ def create_api_mapping(domain_name, stage_name):
         eh.add_props({"api_mappings": api_mapping_props})
         eh.add_log("Created API Mapping", response)
     except ClientError as e:
-        if str(e) == "Create API Mapping Failed: An error occurred (ConflictException) when calling the CreateApiMapping operation: ApiMapping key already exists for this domain name":
+        if "ApiMapping key already exists for this domain name" in str(e):
             eh.add_log("Conflict, cannot Create API Mapping", {"api_id": eh.props['api_id'], "domain_name": domain_name, "stage_name": stage_name})
             eh.perm_error("API Mapping Already Exists for this Domain", {"api_id": eh.props['api_id'], "domain_name": domain_name, "stage_name": stage_name})
         else:
