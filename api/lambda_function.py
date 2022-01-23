@@ -48,7 +48,7 @@ def lambda_handler(event, context):
         domain_name = cdef.get("domain_name") or \
             (f"{component_safe_name(project_code, repo_id, cname, no_underscores=True, max_chars=112)}.{cdef.get('base_domain')}" 
             if cdef.get("base_domain") else None)
-        domain_names = cdef.get("domain_names") or ([domain_name] if domain_name else None)
+        domain_names = cdef.get("domain_names") or ([domain_name] if domain_name else [])
         pass_back_data = event.get("pass_back_data", {})
         old_log_group_name = prev_state.get("props", {}).get("log_group_name")
         
