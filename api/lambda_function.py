@@ -56,7 +56,7 @@ def lambda_handler(event, context):
             pass
         elif event.get("op") == "upsert":
             eh.add_op("get_current_state")
-            previous_domain_names = prev_state.get("props", {}).get("domain_names", [])
+            previous_domain_names = prev_state.get("props", {}).get("domain_names") or []
             domains_to_remove = [d for d in previous_domain_names if d not in domain_names]
             all_domain_names = domain_names+domains_to_remove
             print(f"previous_domain_names = {previous_domain_names}")
