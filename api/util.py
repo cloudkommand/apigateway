@@ -156,7 +156,7 @@ def generate_openapi_definition(name, full_resources, cors_configuration, author
                         "type": "request",
                         "identitySource": value.get("source") or "$request.header.Authorization",
                         "authorizerPayloadFormatVersion": value.get("payload_version") or "2.0",
-                        "authorizerUri": f'arn:aws:apigateway:{region}:lambda:path/2015-03-31/functions/{value.get("lambda_arn") or value.get("function-arn")}/invocations',
+                        "authorizerUri": f'arn:aws:apigateway:{region}:lambda:path/2015-03-31/functions/{value.get("lambda_arn") or value.get("function_arn")}/invocations',
                         "enableSimpleResponses": value.get("enable_simple_responses", True),
                         "authorizerResultTtlInSeconds": value.get("cache_seconds", 300)
                     }
