@@ -48,11 +48,12 @@ def generate_openapi_definition(name, full_resources, cors_configuration, author
         }
         authorizers (dict): {
             "[name]": {
+                ### FOR ALL
+                "source": Used to determine an ID by which to cache authorizer results. Defaults to $request.header.Authorization
                 ### FOR JWT
                 "audience"/"audiences": JWT audience(s) to check. REQUIRED
                 "issuer": The JWT Issuer. Either pass issuer of connect_url
                 "connect_url": Cognito Endpoint to get Issuer from. Either pass issuer of connect_url
-                "source": Only use this endpoint if the OAuth endpoint is supposed to use a different header other than Authorization
                 ### FOR Lambda
                 "function_arn"/"lambda_arn": The Lambda ARN. REQUIRED
                 "payload_version": "2.0"/"1.0", defaults to "2.0"
