@@ -12,7 +12,7 @@ def generate_openapi_definition(name, full_resources, cors_configuration, author
                 "GET": Either:
                     "<lambda_arn>"
                     ["<lambda_arn>", "<authorizer_name>"]
-                    {"dict with lambda_arn as key}
+                    {"dict with arn as key}
             },
             "/agreatpath": {
                 "ANY": "lambda-arn",

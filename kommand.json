@@ -219,7 +219,7 @@
                 },
                 "api_endpoint": {
                     "type": "string",
-                    "description": "The default HTTP endpoint of this API"
+                    "description": "The default HTTPS endpoint of this API"
                 },
                 "stage_name": {
                     "type": "string",
