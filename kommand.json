@@ -112,7 +112,7 @@
                                 "default": 300
                             }
                         },
-                        "oneOf": [
+                        "anyOf": [
                             {
                                 "required": [
                                     "lambda_arn"
@@ -299,7 +299,7 @@
                         "description": "A set of key-value pairs to attach to this API Gateway custom domain name as tags"
                     }
                 },
-                "oneOf": [{
+                "anyOf": [{
                     "required": [
                         "name"
                     ]
