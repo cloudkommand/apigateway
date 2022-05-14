@@ -122,7 +122,7 @@ def get_acm_cert(domain_name, region):
 
     eh.add_op("get_domain_name")
     certificate_arn = sorted_matching_certs[0]['CertificateArn']
-    certificate_domain_name = sorted_matching_certs[0]['CertificateArn']
+    certificate_domain_name = sorted_matching_certs[0]['DomainName']
     eh.add_props({"certificate_arn": certificate_arn,
         "certificate_domain_name": certificate_domain_name})
     eh.add_links({"ACM Certificate": gen_certificate_link(certificate_arn, region)})
