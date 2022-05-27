@@ -29,11 +29,12 @@ def lambda_handler(event, context):
         #Really should be getting region from "default region"
         region = account_context(context)['region']
         prev_state = event.get("prev_state", {})
-        api_id = prev_state.get("props", {}).get("api_id")
         project_code = event.get("project_code")
         repo_id = event.get("repo_id")
         cdef = event.get("component_def")
         cname = event.get("component_name")
+
+        api_id = prev_state.get("props", {}).get("api_id") or cdef.get("existing_id")
         api_name = cdef.get("name") or component_safe_name(project_code, repo_id, cname)
         log_group_name = api_name
         resources = cdef.get("resources")
@@ -58,7 +59,7 @@ def lambda_handler(event, context):
             eh.add_op("get_current_state")
             previous_domain_names = prev_state.get("props", {}).get("domain_names") or []
             domains_to_remove = [d for d in previous_domain_names if d not in domain_names]
-            all_domain_names = domain_names+domains_to_remove
+            all_domain_names = domain_names + domains_to_remove
             print(f"previous_domain_names = {previous_domain_names}")
             print(f"all domain_names = {all_domain_names}")
             if all_domain_names:
@@ -90,7 +91,7 @@ def lambda_handler(event, context):
     except Exception as e:
         msg = traceback.format_exc()
         print(msg)
-        eh.add_log("Uncovered Error", {"error": str(e)}, is_error=True)
+        eh.add_log("Untitled Error", {"error": str(e)}, is_error=True)
         eh.declare_return(200, 0, error_code=str(e))
         return eh.finish()
 
