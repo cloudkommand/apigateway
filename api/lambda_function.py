@@ -640,7 +640,7 @@ def create_api_mapping(domain_name, stage_name):
     except ClientError as e:
         if "ApiMapping key already exists for this domain name" in str(e):
             eh.add_log("Conflict, cannot Create API Mapping", {"api_id": eh.props['api_id'], "domain_name": domain_name, "stage_name": stage_name})
-            eh.perm_error("API Mapping Already Exists for this Domain", {"api_id": eh.props['api_id'], "domain_name": domain_name, "stage_name": stage_name})
+            eh.perm_error("API Mapping Already Exists for this Domain", 85)
         else:
             handle_common_errors(e, eh, "Create API Mapping Failed", 85)
 
