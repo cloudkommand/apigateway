@@ -457,7 +457,8 @@ def update_stage(stage_variables, throttling_burst_limit, throttling_rate_limit)
 
     payload = remove_none_attributes({
         "AccessLogSettings": {
-            "DestinationArn": log_group_arn
+            "DestinationArn": log_group_arn,
+            "Format": json.dumps({ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" })
         },
         "ApiId": api_id,
         "AutoDeploy": True,
