@@ -238,7 +238,7 @@
         "domain_name": {
             "type": "ext",
             "displayname": "CK API Gateway Custom Domain Name",
-            "description": "Deploys an AWS APi Gateway Custom Domain Name. Custom Domain Names are used to route calls from Route53 to an API Gateway",
+            "description": "Deploys an AWS API Gateway Custom Domain Name. Custom Domain Names are used to route calls from Route53 to an API Gateway",
             "cloud": "AWS",
             "resources": ["AWS::apigateway::customdomainname"],
             "policy": {
