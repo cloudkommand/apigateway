@@ -36,7 +36,7 @@ def lambda_handler(event, context):
 
         api_id = prev_state.get("props", {}).get("api_id") or cdef.get("existing_id")
         api_name = cdef.get("name") or component_safe_name(project_code, repo_id, cname)
-        log_group_name = api_name
+        log_group_name = f"/aws/vendedlogs/{api_name}"
         resources = cdef.get("resources")
         stage_name = cdef.get("stage_name") or "live"
         cors_configuration = cdef.get("cors_configuration") or get_default_cors_configuration(cdef.get("cors_enabled"))
@@ -374,7 +374,7 @@ def delete_api():
             eh.add_log(f"Cannot delete API, mappings still present", {"api_id": api_id}, is_error=True)
             eh.perm_error("API mappings still present for this API", 60)
         else:
-            handle_common_errors(e, eh, "Delete api failed", 60)
+            handle_common_errors(e, eh, "Delete API Failed", 60)
 
 
 @ext(handler=eh, op="add_lambda_permissions")
