@@ -200,7 +200,9 @@ def get_lambda_name_from_arn(arn):
 
 def get_first_two_values(value, account_number, region):
     try:
-        v = value.get("arn")
+        v = value.get("arn") if \
+            not value.get('version') or (value.get("version") == "$LATEST") else \
+                f"{value['arn']}:{value['version']}"
     except:
         v = value
     if v.startswith("http"):
@@ -216,11 +218,11 @@ def get_first_two_values(value, account_number, region):
 
 def get_integration_parameters(v, account_number, region):
     print(f"v = {v}")
-    try:
+    try: #Check for the two value list
         check_val = v[1][0]
         integration_type, uri, function_name = get_first_two_values(v[0], account_number, region)
         auth_name = v[1]
-    except:
+    except: #This handles the dict and the single value
         integration_type, uri, function_name = get_first_two_values(v, account_number, region)
         auth_name = None
 
