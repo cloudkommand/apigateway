@@ -17,6 +17,8 @@ eh = ExtensionHandler()
 # "op": op,
 # "s3_object_name": object_name,
 # "pass_back_data": pass_back_data
+ROUTE53_KEY = "Route53"
+CUSTOM_DOMAIN_KEY = "Domain"
 
 apiv2 = boto3.client("apigatewayv2")
 
@@ -46,10 +48,14 @@ def lambda_handler(event, context):
         throttling_burst_limit = cdef.get("throttling_burst_limit")
         throttling_rate_limit = cdef.get("throttling_rate_limit")
         tags = cdef.get("tags") or {}
-        domain_name = cdef.get("domain_name") or \
+        domain_name = cdef.get("domain_name") or cdef.get("domain") or \
             (f"{component_safe_name(project_code, repo_id, cname, no_underscores=True, max_chars=112)}.{cdef.get('base_domain')}" 
             if cdef.get("base_domain") else None)
         domain_names = cdef.get("domain_names") or ([domain_name] if domain_name else [])
+        if domain_names:
+            domains = {str(i+1): {"domain": d} for i, d in enumerate(domain_names)}
+        else:
+            domains = cdef.get("domains")
         pass_back_data = event.get("pass_back_data", {})
         old_log_group_name = prev_state.get("props", {}).get("log_group_name")
         
@@ -57,19 +63,35 @@ def lambda_handler(event, context):
             pass
         elif event.get("op") == "upsert":
             eh.add_op("get_current_state")
-            previous_domain_names = prev_state.get("props", {}).get("domain_names") or []
-            domains_to_remove = [d for d in previous_domain_names if d not in domain_names]
-            all_domain_names = domain_names + domains_to_remove
-            print(f"previous_domain_names = {previous_domain_names}")
-            print(f"all domain_names = {all_domain_names}")
-            if all_domain_names:
-                eh.add_state({"all_domain_names": all_domain_names})
-                eh.add_op("setup_route53_to_api", all_domain_names)
+            r53_keys = list(filter(lambda x: x.startswith(ROUTE53_KEY), prev_state.get("props", {}).keys()))
+            if domains or r53_keys:
+                domain_keys = list(domains.keys())
+                prev_domain_keys = list(map(lambda x: x[8:], filter(lambda x: x.startswith(ROUTE53_KEY), prev_state.get("props", {}).keys())))
+                print(prev_domain_keys)
+                old_domains = {k: 
+                    {
+                        "domain": prev_state['props'][f"{ROUTE53_KEY}_{k}"]['domain'],
+                        "hosted_zone_id": prev_state['props'][f"{ROUTE53_KEY}_{k}"]['route53_hosted_zone_id']
+                    } for k in (set(prev_domain_keys) - set(domain_keys))
+                }
+
+                eh.add_op("setup_custom_domain", {"upsert": domains, "delete": old_domains})
+                eh.add_op("setup_route53", {"upsert": domains, "delete": old_domains})
+            
+            # previous_domain_names = prev_state.get("props", {}).get("domain_names") or []
+            # domains_to_remove = [d for d in previous_domain_names if d not in domain_names]
+            # all_domain_names = domain_names + domains_to_remove
+            # print(f"previous_domain_names = {previous_domain_names}")
+            # print(f"all domain_names = {all_domain_names}")
+            # if all_domain_names:
+            #     eh.add_state({"all_domain_names": all_domain_names})
+            #     eh.add_op("setup_custom_domain", all_domain_names)
         elif event.get("op") == "delete":
             eh.add_op("delete_api", api_id)
-            if domain_names:
-                eh.add_state({"all_domain_names": domain_names})
-                eh.add_op("setup_route53_to_api", domain_names)
+            if domains:
+                # eh.add_state({"all_domain_names": domain_names})
+                eh.add_op("setup_custom_domain", {"delete": domains})
+                eh.add_op("setup_route53", {"delete": domains})
         
         get_current_state(log_group_name, api_id, old_log_group_name, stage_name, region, tags)
         create_cloudwatch_log_group(region, account_number)
@@ -82,7 +104,8 @@ def lambda_handler(event, context):
         confirm_stage_deployment()
         remove_tags()
         add_tags()
-        setup_route53_to_api(domain_names, stage_name, event.get("op"))
+        setup_custom_domain(stage_name, prev_state)
+        setup_route53(prev_state)
         delete_api()
         remove_cloudwatch_log_group()
 
@@ -542,49 +565,78 @@ def remove_tags():
         handle_common_errors(e, eh, "Remove Tags Failed", 65, ['InvalidParameterValueException'])
 
 
-@ext(handler=eh, op="setup_route53_to_api")
-def setup_route53_to_api(domain_names, stage_name, op):
+@ext(handler=eh, op="setup_custom_domain", complete_op=False)
+def setup_custom_domain(stage_name, prev_state):
     
     #Erase all old status, we start this from the beginning every time
     # for op in ["handle_custom_domain", "get_api_mapping", "create_api_mapping", "update_api_mapping", "remove_api_mappings"]:
     #     eh.complete_op(op)
-    print(f"State = {eh.state}")
-    all_domain_names = eh.state['all_domain_names']
+    # print(f"State = {eh.state}")
+    # all_domain_names = eh.state['all_domain_names']
     # new = False
     # if "initiated_route53" not in eh.state:
     #     new = True
     #     eh.state({"initiated_route53": True})
+    op_val = eh.ops["setup_custom_domain"]
+    delete_domains = op_val.get("delete")
+    upsert_domains = op_val.get("upsert")
+    if delete_domains:
+        using_domains = delete_domains
+        route53_op = "delete"
+    elif upsert_domains:
+        using_domains = upsert_domains
+        route53_op = "upsert"
+        # eh.add_op("get_api_mapping")
 
-    for i, domain_name in enumerate(all_domain_names):
-        to_deploy_domain_names = eh.ops['setup_route53_to_api']
-        if domain_name not in to_deploy_domain_names:
-            continue
+    domain_key = sorted(list(using_domains.keys()))[0]
+    domain = using_domains[domain_key].get("domain")
+    # hosted_zone_id = using_domains[domain_key].get("hosted_zone_id")
+    if not domain:
+        eh.perm_error("'domains' dictionary must contain a 'domain' key inside the domain key")
+        return
 
-        if f"initiated {domain_name}" not in eh.state:
-            if domain_name in domain_names and op == "upsert":
-                r53op = "upsert"
-                eh.add_op("get_api_mapping")
-            else:
-                r53op = "delete"
+    # for i, domain_name in enumerate(all_domain_names):
+    #     to_deploy_domain_names = eh.ops['setup_custom_domain']
+    #     if domain_name not in to_deploy_domain_names:
+    #         continue
 
-            eh.add_op("handle_custom_domain", r53op)
-            eh.add_op("handle_route53_alias", r53op)
-            eh.add_state({f"initiated {domain_name}": True})
+    # if f"initiated {domain}" not in eh.state:
+    #     if domain in domain and op == "upsert":
+    #         route53_op = "upsert"
+    #         eh.add_op("get_api_mapping")
+    #     else:
+    #         route53_op = "delete"
 
-        handle_custom_domain(domain_name, (i+1))
-        get_api_mapping(domain_name, domain_names)
-        create_api_mapping(domain_name, stage_name)
-        update_api_mapping(domain_name, stage_name)
-        remove_api_mappings(domain_name)
-        handle_route53_alias(domain_name, (i+1))
-        if eh.error:
-            return 0
-        eh.add_op("setup_route53_to_api", to_deploy_domain_names[1:])
+    if f"initiated {domain}" not in eh.state:
+        if route53_op == "upsert":
+            eh.add_op("get_api_mapping")
+
+        eh.add_op("handle_custom_domain", route53_op)
+        # eh.add_op("handle_route53_alias", route53_op)
+        eh.add_state({f"initiated {domain}": True})
+
+    handle_custom_domain(prev_state, domain, domain_key)
+    get_api_mapping(domain, route53_op)
+    create_api_mapping(domain, stage_name)
+    update_api_mapping(domain, stage_name)
+    remove_api_mappings(domain)
+    # handle_route53_alias(domain, domain_key)
+    if eh.error:
+        return 0
+    else:
+        if route53_op == "delete":
+            del delete_domains[domain_key]
+        else:            
+            del upsert_domains[domain_key]
+        if delete_domains or upsert_domains:
+            eh.add_op("setup_custom_domain", {"delete": delete_domains, "upsert": upsert_domains})
+            setup_custom_domain(stage_name, prev_state)
+        else:
+            eh.complete_op("setup_custom_domain")
         
-    eh.add_props({"domain_names": domain_names})
 
 @ext(handler=eh, op="handle_custom_domain")
-def handle_custom_domain(domain_name, integer):
+def handle_custom_domain(prev_state, domain_name, domain_key):
 
     component_def = {
         "name": domain_name
@@ -592,11 +644,16 @@ def handle_custom_domain(domain_name, integer):
 
     function_arn = lambda_env('domain_name_extension_arn')
 
+    child_key = f"{CUSTOM_DOMAIN_KEY}_{domain_key}"
+
+    if eh.ops["handle_custom_domain"] == "upsert" and prev_state and prev_state.get("props", {}).get(child_key, {}):
+        eh.add_props({child_key: prev_state.get("props", {}).get(child_key, {})})
+
     proceed = eh.invoke_extension(
         arn=function_arn, component_def=component_def, 
-        child_key=f"Domain {integer}", progress_start=85, progress_end=100,
-        merge_props=False, op=eh.ops["handle_custom_domain"], 
-        links_prefix=f"Domain {integer}"
+        child_key=child_key, progress_start=85, progress_end=90,
+        op=eh.ops["handle_custom_domain"], 
+        links_prefix=f"{CUSTOM_DOMAIN_KEY} {domain_key}"
     )
 
     print(f"Post invoke, extension props = {eh.props}")
@@ -606,17 +663,17 @@ def handle_custom_domain(domain_name, integer):
 
 
 @ext(handler=eh, op="get_api_mapping")
-def get_api_mapping(domain_name, desired_domain_names):
+def get_api_mapping(domain_name, route53_op):
     response = apiv2.get_api_mappings(DomainName=domain_name)
     these_mappings = list(filter(lambda x: x["ApiId"] == eh.props['api_id'], response['Items']))
     
-    if these_mappings and (domain_name not in desired_domain_names):
+    if these_mappings and route53_op == "delete":
         eh.add_op("remove_api_mappings", list(map(lambda x: x['ApiMappingId'], these_mappings)))
 
-    elif not these_mappings and (domain_name in desired_domain_names):
+    elif not these_mappings and route53_op == "upsert":
         eh.add_op("create_api_mapping")
 
-    elif domain_name in desired_domain_names:
+    elif route53_op == "upsert":
         eh.add_op("update_api_mapping", these_mappings[0].get("ApiMappingId"))
         if len(these_mappings) > 1:
             eh.add_op("remove_api_mappings", list(map(lambda x: x['ApiMappingId'], these_mappings[1:])))
@@ -641,9 +698,9 @@ def create_api_mapping(domain_name, stage_name):
     except ClientError as e:
         if "ApiMapping key already exists for this domain name" in str(e):
             eh.add_log("Conflict, cannot Create API Mapping", {"api_id": eh.props['api_id'], "domain_name": domain_name, "stage_name": stage_name})
-            eh.perm_error("API Mapping Already Exists for this Domain", 85)
+            eh.perm_error("API Mapping Already Exists for this Domain", 91)
         else:
-            handle_common_errors(e, eh, "Create API Mapping Failed", 85)
+            handle_common_errors(e, eh, "Create API Mapping Failed", 91)
 
 @ext(handler=eh, op="update_api_mapping")
 def update_api_mapping(domain_name, stage_name):
@@ -661,14 +718,14 @@ def update_api_mapping(domain_name, stage_name):
         eh.add_props({"api_mappings": api_mapping_props})
         eh.add_log("Updated API Mapping", response)
     except ClientError as e:
-        handle_common_errors(e, eh, "Update API Mapping Failed", 85)
+        handle_common_errors(e, eh, "Update API Mapping Failed", 91)
 
 @ext(handler=eh, op="remove_api_mappings")
 def remove_api_mappings(domain_name):
 
     for api_mapping_id in eh.ops['remove_api_mappings']:
         try:
-            response = apiv2.delete_api_mapping(
+            apiv2.delete_api_mapping(
                 ApiMappingId=api_mapping_id,
                 DomainName=domain_name
             )
@@ -676,34 +733,89 @@ def remove_api_mappings(domain_name):
 
         except ClientError as e:
             if e.response['Error']['Code'] != "NotFoundException":
-                handle_common_errors(e, eh, "Delete API Mapping Failed", 85)
+                handle_common_errors(e, eh, "Delete API Mapping Failed", 91)
             else:
                 eh.add_log("API Mapping Not found", {"id": api_mapping_id})
                 return 0
 
-@ext(handler=eh, op="handle_route53_alias")
-def handle_route53_alias(domain_name, integer):
-    print(f"inside alias, props = {eh.props}")
-    domain = eh.props.get(f"Domain {integer}", {})
 
-    component_def = {
-        "domain": domain_name,
-        "target_api_hosted_zone_id": domain.get("hosted_zone_id"),
-        "target_api_domain_name": domain.get("api_gateway_domain_name")
-    }
+@ext(handler=eh, op="setup_route53", complete_op=False)
+def setup_route53(prev_state):
+    print(f"props = {eh.props}")
+    op_val = eh.ops["setup_route53"]
+    delete_domains = op_val.get("delete")
+    upsert_domains = op_val.get("upsert")
+    if delete_domains:
+        route53_op = "delete"
+        using_domains = delete_domains
+    elif upsert_domains:
+        route53_op = "upsert"
+        using_domains = upsert_domains
+    
+    domain_key = list(using_domains.keys())[0]
+    domain = using_domains[domain_key].get("domain")
+    hosted_zone_id = using_domains[domain_key].get("hosted_zone_id")
+    if not domain:
+        eh.perm_error("'domains' dictionary must contain a 'domain' key inside the domain key")
+        return
+
+    custom_domain = eh.props.get(f"{CUSTOM_DOMAIN_KEY}_{domain_key}")
+
+    component_def = remove_none_attributes({
+        "domain": domain,
+        "route53_hosted_zone_id": hosted_zone_id,
+        "target_api_hosted_zone_id": custom_domain.get("hosted_zone_id"),
+        "target_api_domain_name": custom_domain.get("api_gateway_domain_name")
+    })
 
     function_arn = lambda_env('route53_extension_arn')
+    
+    child_key = f"{ROUTE53_KEY}_{domain_key}"
+
+    if prev_state and prev_state.get("props", {}).get(child_key, {}):
+        eh.add_props({child_key: prev_state.get("props", {}).get(child_key, {})})
 
     proceed = eh.invoke_extension(
         arn=function_arn, component_def=component_def, 
-        child_key=f"Route53 {integer}", progress_start=85, progress_end=95,
-        merge_props=False, op=eh.ops['handle_route53_alias'], 
-        links_prefix=f"Route53 {integer}"
-    )   
+        links_prefix=f"{ROUTE53_KEY} {domain_key} ", child_key=child_key, 
+        progress_start=85, progress_end=100, op=route53_op
+    )
 
-    # if proceed:
-    #     eh.add_links({"Website URL": f'http://{eh.props["Route53"].get("domain")}'})
-    print(f"proceed = {proceed}")
+    if proceed:
+        # if (i != 1) or (len(list(available_domains.keys())) > 1) else "Website URL"
+        if route53_op == "delete":
+            del delete_domains[domain_key]
+        else:
+            del upsert_domains[domain_key]
+        if delete_domains or upsert_domains:
+            eh.add_op("setup_route53", {"delete": delete_domains, "upsert": upsert_domains})
+            setup_route53(prev_state)
+        else:
+            eh.complete_op("setup_route53")
+
+# @ext(handler=eh, op="handle_route53_alias")
+# def handle_route53_alias(domain_name, key):
+#     print(f"inside alias, props = {eh.props}")
+#     domain = eh.props.get(f"Domain {key}", {})
+
+#     component_def = {
+#         "domain": domain_name,
+#         "target_api_hosted_zone_id": domain.get("hosted_zone_id"),
+#         "target_api_domain_name": domain.get("api_gateway_domain_name")
+#     }
+
+#     function_arn = lambda_env('route53_extension_arn')
+
+#     proceed = eh.invoke_extension(
+#         arn=function_arn, component_def=component_def, 
+#         child_key=f"{ROUTE53_KEY} {key}", progress_start=92, progress_end=95,
+#         merge_props=False, op=eh.ops['handle_route53_alias'], 
+#         links_prefix=f"{ROUTE53_KEY} {key}"
+#     )   
+
+#     # if proceed:
+#     #     eh.add_links({"Website URL": f'http://{eh.props["Route53"].get("domain")}'})
+#     print(f"proceed = {proceed}")
 
 def gen_apigateway_arn(api_id, region):
     return f"arn:aws:apigateway:{region}::/apis/{api_id}"
