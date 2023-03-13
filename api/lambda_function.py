@@ -612,7 +612,8 @@ def setup_custom_domain(stage_name, prev_state):
         if route53_op == "upsert":
             eh.add_op("get_api_mapping")
         else:
-            eh.add_props(prev_state['props'].get(domain_key))
+            child_key = f"{CUSTOM_DOMAIN_KEY}_{domain_key}"
+            eh.add_props(prev_state['props'].get(child_key, {}))
 
         eh.add_op("handle_custom_domain", route53_op)
         # eh.add_op("handle_route53_alias", route53_op)
