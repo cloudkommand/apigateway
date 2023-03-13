@@ -6,7 +6,8 @@ import json
 import traceback
 
 from extutil import remove_none_attributes, gen_log, creturn, handle_common_errors, \
-    account_context, component_safe_name, ExtensionHandler, ext, lambda_env
+    account_context, component_safe_name, ExtensionHandler, ext, lambda_env,
+    random_id
 
 eh = ExtensionHandler()
 
@@ -206,9 +207,13 @@ def create_domain_name(domain_name, desired_config, desired_tls_config, tags, re
         })
 
     except ClientError as e:
-        handle_common_errors(e, eh, "Create Failure", 35, 
-            ["NotFoundException", "BadRequestException", "AccessDeniedException"]
-        )
+        if e.response['Error']['Code'] == "TooManyRequestsException":
+            eh.add_log("Domain Name Service Rate Limit, Retrying", {"domain_name": domain_name})
+            eh.retry_error(random_id(), 35, callback_sec=35)
+        else:
+            handle_common_errors(e, eh, "Create Failure", 35, 
+                ["NotFoundException", "BadRequestException", "AccessDeniedException"]
+            )
 
 @ext(handler=eh, op="update_domain_name")
 def update_domain_name(domain_name, desired_config, desired_tls_config, region):
