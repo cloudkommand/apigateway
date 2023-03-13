@@ -6,7 +6,7 @@ import json
 import traceback
 
 from extutil import remove_none_attributes, gen_log, creturn, handle_common_errors, \
-    account_context, component_safe_name, ExtensionHandler, ext, lambda_env,
+    account_context, component_safe_name, ExtensionHandler, ext, lambda_env, \
     random_id
 
 eh = ExtensionHandler()
