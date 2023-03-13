@@ -581,6 +581,7 @@ def setup_custom_domain(stage_name, prev_state):
     op_val = eh.ops["setup_custom_domain"]
     delete_domains = op_val.get("delete")
     upsert_domains = op_val.get("upsert")
+    print(f"domain, delete_domains={delete_domains}, upsert_domains={upsert_domains}")
     if delete_domains:
         using_domains = delete_domains
         route53_op = "delete"
@@ -608,7 +609,7 @@ def setup_custom_domain(stage_name, prev_state):
     #     else:
     #         route53_op = "delete"
 
-    if f"initiated {domain}" not in eh.state:
+    if f"initiated {domain_key}" not in eh.state:
         if route53_op == "upsert":
             eh.add_op("get_api_mapping")
         else:
@@ -617,7 +618,7 @@ def setup_custom_domain(stage_name, prev_state):
 
         eh.add_op("handle_custom_domain", route53_op)
         # eh.add_op("handle_route53_alias", route53_op)
-        eh.add_state({f"initiated {domain}": True})
+        eh.add_state({f"initiated {domain_key}": True})
 
     handle_custom_domain(prev_state, domain, domain_key)
     get_api_mapping(domain, route53_op)
