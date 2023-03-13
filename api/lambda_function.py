@@ -743,8 +743,11 @@ def remove_api_mappings(domain_name):
 def setup_route53(prev_state):
     print(f"props = {eh.props}")
     op_val = eh.ops["setup_route53"]
+    print(f"op_val = {op_val}")
     delete_domains = op_val.get("delete")
     upsert_domains = op_val.get("upsert")
+    print(f"delete_domains = {delete_domains}")
+    print(f"upsert_domains = {upsert_domains}")
     if delete_domains:
         route53_op = "delete"
         using_domains = delete_domains
