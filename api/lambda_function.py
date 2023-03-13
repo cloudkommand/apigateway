@@ -1,6 +1,7 @@
 import boto3
 import botocore
 # import jsonschema
+import copy
 import json
 import traceback
 from botocore.exceptions import ClientError
@@ -76,7 +77,7 @@ def lambda_handler(event, context):
                 }
 
                 eh.add_op("setup_custom_domain", {"upsert": domains, "delete": old_domains})
-                eh.add_op("setup_route53", {"upsert": domains, "delete": old_domains})
+                eh.add_op("setup_route53", {"upsert": copy.deepcopy(domains), "delete": copy.deepcopy(old_domains)})
             
             # previous_domain_names = prev_state.get("props", {}).get("domain_names") or []
             # domains_to_remove = [d for d in previous_domain_names if d not in domain_names]
@@ -91,7 +92,7 @@ def lambda_handler(event, context):
             if domains:
                 # eh.add_state({"all_domain_names": domain_names})
                 eh.add_op("setup_custom_domain", {"delete": domains})
-                eh.add_op("setup_route53", {"delete": domains})
+                eh.add_op("setup_route53", {"delete": copy.deepcopy(domains)})
         
         get_current_state(log_group_name, api_id, old_log_group_name, stage_name, region, tags)
         create_cloudwatch_log_group(region, account_number)
