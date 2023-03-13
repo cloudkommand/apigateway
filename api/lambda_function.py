@@ -630,7 +630,7 @@ def setup_custom_domain(stage_name, prev_state):
     else:
         if route53_op == "delete":
             del delete_domains[domain_key]
-            del eh.props[domain_key]
+            del eh.props[child_key]
         else:            
             del upsert_domains[domain_key]
         if delete_domains or upsert_domains:
