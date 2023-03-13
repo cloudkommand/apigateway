@@ -613,6 +613,7 @@ def setup_custom_domain(stage_name, prev_state):
         if route53_op == "upsert":
             eh.add_op("get_api_mapping")
         else:
+            # This gets used by the R53 handler as well
             child_key = f"{CUSTOM_DOMAIN_KEY}_{domain_key}"
             eh.add_props({child_key: prev_state['props'].get(child_key, {})})
 
@@ -631,7 +632,7 @@ def setup_custom_domain(stage_name, prev_state):
     else:
         if route53_op == "delete":
             del delete_domains[domain_key]
-            del eh.props[child_key]
+            # del eh.props[child_key]
         else:            
             del upsert_domains[domain_key]
         if delete_domains or upsert_domains:
@@ -794,6 +795,10 @@ def setup_route53(prev_state):
         # if (i != 1) or (len(list(available_domains.keys())) > 1) else "Website URL"
         if route53_op == "delete":
             del delete_domains[domain_key]
+            if eh.props.get(child_key):
+                del eh.props[child_key]
+            if eh.props.get(f"{CUSTOM_DOMAIN_KEY}_{domain_key}"):
+                del eh.props[f"{CUSTOM_DOMAIN_KEY}_{domain_key}"]
         else:
             del upsert_domains[domain_key]
         if delete_domains or upsert_domains:

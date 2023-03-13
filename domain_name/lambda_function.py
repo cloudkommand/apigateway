@@ -250,7 +250,7 @@ def remove_domain_name():
 
     except ClientError as e:
         if e.response['Error']['Code'] == 'NotFoundException':
-            eh.add_log(f"Domain Name does not Exist", {"domain_name": domain_name})
+            eh.add_log(f"Domain Name Does Not Exist", {"domain_name": domain_name})
         else:
             eh.retry_error(str(e), 90 if create_and_delete else 15)
             eh.add_log(f"Error Deleting Domain Name", {"domain_name": domain_name}, True)
