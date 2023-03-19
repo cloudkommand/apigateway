@@ -263,16 +263,16 @@
                 "displayname": "API with Lambda Authorizer",
                 "notes": "This example shows how to deploy an API Gateway with a Lambda Authorizer. CORS requires OPTIONS be routed without the authorizer, and the simple cors_enabled flag sets CORS to a standard configuration.",
                 "definition": {
-                    "type": "@apigw.api",
+                    "type": "&apigw.api",
                     "resources": {
                         "/{proxy+}": {
-                            "OPTIONS": "@api_lambda",
-                            "ANY": ["@api_lambda:props.arn", "custom"]
+                            "OPTIONS": "&api_lambda",
+                            "ANY": ["&api_lambda:props.arn", "custom"]
                         }
                     },
                     "authorizers": {
                         "custom": {
-                            "lambda_arn": "@authorizer:props.arn"
+                            "lambda_arn": "&authorizer:props.arn"
                         }
                     },
                     "cors_enabled": true
@@ -281,29 +281,29 @@
                 "displayname": "Versioned API Through Routing",
                 "notes": "This is an example of how CloudKommand recommends you version APIs. The v2 authorizer also caches results keying on both the path and the authorization header, rather than just the authorization header.",
                 "definition": {
-                    "type": "@apigw.api",
+                    "type": "&apigw.api",
                     "resources": {
                         "/api/v1/{proxy+}": {
-                            "OPTIONS": "@api_lambda",
-                            "ANY": ["@api_lambda", "custom"]
+                            "OPTIONS": "&api_lambda",
+                            "ANY": ["&api_lambda", "custom"]
                         },
                         "/api/v2/{proxy+}": {
-                            "OPTIONS": "@api_lambda_v2",
-                            "ANY": ["@api_lambda_v2", "v2"]
+                            "OPTIONS": "&api_lambda_v2",
+                            "ANY": ["&api_lambda_v2", "v2"]
                         },
                         "/api/webhooks/facebook": {
-                            "POST": "@fb_webhook_lambda"
+                            "POST": "&fb_webhook_lambda"
                         },
                         "/api/webhooks/google": {
-                            "POST": "@g_webhook_lambda"
+                            "POST": "&g_webhook_lambda"
                         }
                     },
                     "authorizers": {
                         "custom": {
-                            "lambda_arn": "@authorizer:props.arn"
+                            "lambda_arn": "&authorizer:props.arn"
                         },
                         "v2": {
-                            "lambda_arn": "@authorizer_v2:props.arn",
+                            "lambda_arn": "&authorizer_v2:props.arn",
                             "source": " $request.header.Authorization,$context.path"
                         }
                     },
@@ -313,15 +313,15 @@
                 "displayname": "API with OIDC Authorizer",
                 "notes": "",
                 "definition": {
-                    "type": "@apigw.api",
+                    "type": "&apigw.api",
                     "resources": {
                         "/api/v1": {
                             "/unauthenticated/{proxy+}": {
-                                "GET": "@public_lambda"
+                                "GET": "&public_lambda"
                             },
                             "/{proxy+}": {
-                                "OPTIONS": "@api_lambda",
-                                "ANY": ["@api_lambda:props.arn", "fb"]
+                                "OPTIONS": "&api_lambda",
+                                "ANY": ["&api_lambda:props.arn", "fb"]
                             }
                         }
                     },
@@ -418,7 +418,7 @@
                     "displayname": "Custom Domain Name",
                     "notes": "Includes tags.",
                     "definition": {
-                        "type": "@apigw.domain_name",
+                        "type": "&apigw.domain_name",
                         "name": "api.example.com",
                         "tags": {
                             "tag1": "value1",
@@ -429,7 +429,7 @@
                 {
                     "displayname": "Domain Name from Base Domain",
                     "definition": {
-                        "type": "@apigw.domain_name",
+                        "type": "&apigw.domain_name",
                         "base_domain": "example.com"
                     }
                 }
