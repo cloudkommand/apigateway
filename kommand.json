@@ -5,6 +5,7 @@
             "displayname": "CK API Gateway",
             "description": "Deploys an AWS APi Gateway. API Gateway sits on the front of your API and handles accepting and processing API calls",
             "cloud": "AWS",
+            "ck_plugin_tier": 1,
             "resources": ["AWS::apigateway::api", "AWS::logs::loggroup"],
             "policy": {
                 "Version": "2012-10-17",
@@ -34,7 +35,7 @@
                 "properties": {
                     "resources": {
                         "type": "object",
-                        "description": "Each key at the base level of this object must specify a route (e.g. /soar). Then, each value should be an object with additional route keys and/or HTTP methods as keys (e.g. PATCH). The route keys should have as their value either an HTTP endpoint, a lambda component reference, a lambda ARN, or a list with the first element being one of the three previously mentioned strings and the second element being the name of an authorizer. http://NOTHEREYET for examples."
+                        "description": "Each key at the base level of this object must specify a route (e.g. /soar). Then, each value should be an object with additional route keys and/or HTTP methods as keys (e.g. POST). The route keys should have as their value either an HTTP URL, a lambda component reference, a lambda ARN, or a list with the first element being one of the three previously mentioned strings and the second element being the name of an authorizer. https://github.com/cloudkommand/apigateway for examples."
                     },
                     "cors_configuration": {
                         "type": "object",
@@ -70,6 +71,7 @@
                     "authorizers": {
                         "type": "object",
                         "description": "A dictionary of the JWT and Lambda authorizers that should be attached to this API",
+                        "common": true,
                         "properties": {
                             "audience": {
                                 "type": "string",
@@ -164,20 +166,42 @@
                     },
                     "cors_enabled": {
                         "type": "boolean",
-                        "description": "If true (and cors_configuration not specified), sets the cors configuration to a set of default values intended to service basic APIs being hit by the browser. See http://NotHereYet for details"
+                        "common": true,
+                        "description": "If true (and cors_configuration not specified), sets the cors configuration to a set of default values intended to service APIs being hit by the browser.",
+                        "default": false
                     },
                     "tags": {
                         "type": "object",
+                        "common": true,
                         "description": "A set of key-value pairs to attach to this API Gateway as tags"
                     },
                     "name": {
                         "type": "string",
+                        "common": true,
                         "description": "The name of the API Gateway. Will be auto-generated if not specified"
                     },
                     "stage_name": {
                         "type": "string",
-                        "description": "The name of the stage, this is added to the URL of the API for all endpoints",
+                        "description": "The name of the stage, this is added to the URL of the API for all endpoints if calling directly through the default API URL and not through a custom domain name. CloudKommand recommends not setting this value and versioning APIs through routing with 'resources'",
                         "default": "live"
+                    },
+                    "domains": {
+                        "type": "object",
+                        "description": "A set of key value pairs, with the keys being a namespace, and the values being either the domain name or a dictionary with keys 'domain' and (optional) 'hosted_zone_id'. Set hosted_zone_id if you want to use a private hosted zone in Route53.",
+                        "common": true,
+                        "additionalProperties": {
+                            "type": ["object", "string"],
+                            "properties": {
+                                "domain": {
+                                    "type": "string",
+                                    "description": "The domain name to use for this API"
+                                },
+                                "hosted_zone_id": {
+                                    "type": "string",
+                                    "description": "The ID of the Route53 hosted zone to use for this domain"
+                                }
+                            }
+                        }
                     },
                     "domain_names": {
                         "type": "array",
@@ -189,7 +213,8 @@
                     },
                     "base_domain": {
                         "type": "string",
-                        "description": "Pass a base domain to get a unique domain through a generated subdomain"
+                        "common": true,
+                        "description": "Pass a base domain to get a unique domain through a generated subdomain. Set this value if you want multiple developers working on the same API to get unique domains per CloudKommand project."
                     }
                 },
                 "required": [
@@ -225,15 +250,90 @@
                     "type": "string",
                     "description": "The name of the deployed stage"
                 },
-                "Route53 (num)": {
+                "Route53 {key}": {
                     "type": "object",
-                    "description": "Contains the properties of any route53.record components deployed, with num corresponding to the order within the list of domain_names, counting up from 1"
+                    "description": "Contains the properties of any route53.record components deployed, with the key being the key in the domains dictionary. If 'base_domain' is used instead, the key is set to 1"
                 },
-                "Domain (num)": {
+                "Domain {key}": {
                     "type": "object",
-                    "description": "Contains the properties of any domain_name components deployed, with num corresponding to the order within the list of domain_names, counting up from 1"
+                    "description": "Contains the properties of any domain_name components deployed, with the key being the key in the domains dictionary. If 'base_domain' is used instead, the key is set to 1"
                 }
-            }
+            },
+            "examples": [{
+                "displayname": "API with Lambda Authorizer",
+                "notes": "This example shows how to deploy an API Gateway with a Lambda Authorizer. CORS requires OPTIONS be routed without the authorizer, and the simple cors_enabled flag sets CORS to a standard configuration.",
+                "definition": {
+                    "type": "@apigw.api",
+                    "resources": {
+                        "/{proxy+}": {
+                            "OPTIONS": "@api_lambda",
+                            "ANY": ["@api_lambda:props.arn", "custom"]
+                        }
+                    },
+                    "authorizers": {
+                        "custom": {
+                            "lambda_arn": "@authorizer:props.arn"
+                        }
+                    },
+                    "cors_enabled": true
+                }
+            }, {
+                "displayname": "Versioned API Through Routing",
+                "notes": "This is an example of how CloudKommand recommends you version APIs. The v2 authorizer also caches results keying on both the path and the authorization header, rather than just the authorization header.",
+                "definition": {
+                    "type": "@apigw.api",
+                    "resources": {
+                        "/api/v1/{proxy+}": {
+                            "OPTIONS": "@api_lambda",
+                            "ANY": ["@api_lambda", "custom"]
+                        },
+                        "/api/v2/{proxy+}": {
+                            "OPTIONS": "@api_lambda_v2",
+                            "ANY": ["@api_lambda_v2", "v2"]
+                        },
+                        "/api/webhooks/facebook": {
+                            "POST": "@fb_webhook_lambda"
+                        },
+                        "/api/webhooks/google": {
+                            "POST": "@g_webhook_lambda"
+                        }
+                    },
+                    "authorizers": {
+                        "custom": {
+                            "lambda_arn": "@authorizer:props.arn"
+                        },
+                        "v2": {
+                            "lambda_arn": "@authorizer_v2:props.arn",
+                            "source": " $request.header.Authorization,$context.path"
+                        }
+                    },
+                    "cors_enabled": true
+                }
+            }, {
+                "displayname": "API with OIDC Authorizer",
+                "notes": "",
+                "definition": {
+                    "type": "@apigw.api",
+                    "resources": {
+                        "/api/v1": {
+                            "/unauthenticated/{proxy+}": {
+                                "GET": "@public_lambda"
+                            },
+                            "/{proxy+}": {
+                                "OPTIONS": "@api_lambda",
+                                "ANY": ["@api_lambda:props.arn", "fb"]
+                            }
+                        }
+                    },
+                    "authorizers": {
+                        "fb": {
+                            "audiences": ["allowed_audience_1", "allowed_audience_2"],
+                            "issuer": "https://www.facebook.com"
+                        }
+                    },
+                    "cors_enabled": true
+                }
+            }]
         },
         "domain_name": {
             "type": "ext",
@@ -241,6 +341,7 @@
             "description": "Deploys an AWS API Gateway Custom Domain Name. Custom Domain Names are used to route calls from Route53 to an API Gateway",
             "cloud": "AWS",
             "resources": ["AWS::apigateway::customdomainname"],
+            "ck_plugin_tier": 4,
             "policy": {
                 "Version": "2012-10-17",
                 "Statement": [{
@@ -280,11 +381,13 @@
                 "properties": {
                     "name": {
                         "type": "string",
-                        "description": "The desired domain name"
+                        "description": "The desired domain name",
+                        "common": true
                     },
                     "base_domain": {
                         "type": "string",
-                        "description": "Pass a base domain to get a unique domain name through a generated subdomain"
+                        "description": "Pass a base domain to get a unique domain name through a generated subdomain",
+                        "common": true
                     },
                     "truststore_uri": {
                         "type": "string",
@@ -296,7 +399,8 @@
                     },
                     "tags": {
                         "type": "object",
-                        "description": "A set of key-value pairs to attach to this API Gateway custom domain name as tags"
+                        "description": "A set of key-value pairs to attach to this API Gateway custom domain name as tags",
+                        "common": true
                     }
                 },
                 "anyOf": [{
@@ -308,7 +412,28 @@
                         "base_domain"
                     ]
                 }]
-            }
+            },
+            "examples": [
+                {
+                    "displayname": "Custom Domain Name",
+                    "notes": "Includes tags.",
+                    "definition": {
+                        "type": "@apigw.domain_name",
+                        "name": "api.example.com",
+                        "tags": {
+                            "tag1": "value1",
+                            "tag2": "value2"
+                        }
+                    }
+                },
+                {
+                    "displayname": "Domain Name from Base Domain",
+                    "definition": {
+                        "type": "@apigw.domain_name",
+                        "base_domain": "example.com"
+                    }
+                }
+            ]
         }
     },
     "repos": {
