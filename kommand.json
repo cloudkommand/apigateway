@@ -203,14 +203,6 @@
                             }
                         }
                     },
-                    "domain_names": {
-                        "type": "array",
-                        "description": "A list of domain names to point at this API"
-                    },
-                    "domain_name": {
-                        "type": "string",
-                        "description": "The (singular) domain name to point at this API"
-                    },
                     "base_domain": {
                         "type": "string",
                         "common": true,
@@ -260,8 +252,8 @@
                 }
             },
             "examples": [{
-                "displayname": "API with Lambda Authorizer",
-                "notes": "This example shows how to deploy an API Gateway with a Lambda Authorizer. CORS requires OPTIONS be routed without the authorizer, and the simple cors_enabled flag sets CORS to a standard configuration.",
+                "displayname": "API with Lambda Authorizer and a Domain Name",
+                "notes": "This example shows how to deploy an API Gateway with a Lambda Authorizer. CORS requires OPTIONS be routed without the authorizer, and the simple cors_enabled flag sets CORS to a standard configuration. We also set a custom domain to route traffic to this API through the domains parameter.",
                 "definition": {
                     "type": "&apigw.api",
                     "resources": {
@@ -274,6 +266,9 @@
                         "custom": {
                             "lambda_arn": "&authorizer:props.arn"
                         }
+                    },
+                    "domains": {
+                        "key1": "key1.example.com"
                     },
                     "cors_enabled": true
                 }
@@ -310,8 +305,8 @@
                     "cors_enabled": true
                 }
             }, {
-                "displayname": "API with OIDC Authorizer",
-                "notes": "",
+                "displayname": "API with OIDC Authorizer and Two Domains",
+                "notes": "The OIDC authorizer requires specifying the issuer and the audiences. Additionally multiple domains are attached with specified route53 hosted zones. Each domain requires its own key.",
                 "definition": {
                     "type": "&apigw.api",
                     "resources": {
@@ -329,6 +324,16 @@
                         "fb": {
                             "audiences": ["allowed_audience_1", "allowed_audience_2"],
                             "issuer": "https://www.facebook.com"
+                        }
+                    },
+                    "domains": {
+                        "k1": {
+                            "domain": "key1.example.com",
+                            "hosted_zone_id": "Z2FDTNDATAQYW2"
+                        },
+                        "k2": {
+                            "domain": "key2.example.com",
+                            "hosted_zone_id": "Z2FDTNDATAQYW2"
                         }
                     },
                     "cors_enabled": true
