@@ -199,6 +199,11 @@
                                 "hosted_zone_id": {
                                     "type": "string",
                                     "description": "The ID of the Route53 hosted zone to use for this domain"
+                                },
+                                "external_domain": {
+                                    "type": "boolean",
+                                    "description": "Set to true if this domain is hosted outside of AWS. A route53 record will not be created for it",
+                                    "default": false
                                 }
                             }
                         }
