@@ -208,7 +208,7 @@ def create_domain_name(domain_name, desired_config, desired_tls_config, tags, re
 
     except ClientError as e:
         if e.response['Error']['Code'] == "TooManyRequestsException":
-            eh.add_log("Domain Name Service Rate Limit, Retrying", {"domain_name": domain_name})
+            eh.add_log("Domain Name Service Rate Limit, Retrying", {"domain_name": domain_name}, True)
             eh.retry_error(random_id(), 35, callback_sec=35)
         else:
             handle_common_errors(e, eh, "Create Failure", 35, 
@@ -256,6 +256,9 @@ def remove_domain_name():
     except ClientError as e:
         if e.response['Error']['Code'] == 'NotFoundException':
             eh.add_log(f"Domain Name Does Not Exist", {"domain_name": domain_name})
+        elif e.response['Error']['Code'] == 'TooManyRequestsException':
+            eh.retry_error(random_id(), 90 if create_and_delete else 15, callback_sec=20)
+            eh.add_log(f"Domain Name Rate Limit, Retrying", {"domain_name": domain_name}, True)
         else:
             eh.retry_error(str(e), 90 if create_and_delete else 15)
             eh.add_log(f"Error Deleting Domain Name", {"domain_name": domain_name}, True)

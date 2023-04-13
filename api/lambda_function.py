@@ -12,12 +12,6 @@ from util import get_default_cors_configuration, generate_openapi_definition
 
 eh = ExtensionHandler()
 
-# def validate_state(state):
-# "prev_state": prev_state,
-# "component_def": component_def, RENDERED
-# "op": op,
-# "s3_object_name": object_name,
-# "pass_back_data": pass_back_data
 ROUTE53_KEY = "Route53"
 CUSTOM_DOMAIN_KEY = "Domain"
 
@@ -77,7 +71,8 @@ def lambda_handler(event, context):
                 }
 
                 eh.add_op("setup_custom_domain", {"upsert": domains, "delete": old_domains})
-                eh.add_op("setup_route53", {"upsert": copy.deepcopy(domains), "delete": copy.deepcopy(old_domains)})
+                upsert_domains = {k:v for k,v in domains.items() if isinstance(v, str) or (not v.get("external_domain"))}
+                eh.add_op("setup_route53", {"upsert": upsert_domains, "delete": copy.deepcopy(old_domains)})
             
             # previous_domain_names = prev_state.get("props", {}).get("domain_names") or []
             # domains_to_remove = [d for d in previous_domain_names if d not in domain_names]
@@ -92,7 +87,8 @@ def lambda_handler(event, context):
             if domains:
                 # eh.add_state({"all_domain_names": domain_names})
                 eh.add_op("setup_custom_domain", {"delete": domains})
-                eh.add_op("setup_route53", {"delete": copy.deepcopy(domains)})
+                delete_domains = {k:v for k,v in domains.items() if not isinstance(v, str) or v.get("external_domain")}
+                eh.add_op("setup_route53", {"delete": delete_domains})
         
         get_current_state(log_group_name, api_id, old_log_group_name, stage_name, region, tags)
         create_cloudwatch_log_group(region, account_number)
@@ -596,18 +592,6 @@ def setup_custom_domain(stage_name, prev_state):
     if not domain:
         eh.perm_error("'domains' dictionary must contain a 'domain' key inside the domain key")
         return
-
-    # for i, domain_name in enumerate(all_domain_names):
-    #     to_deploy_domain_names = eh.ops['setup_custom_domain']
-    #     if domain_name not in to_deploy_domain_names:
-    #         continue
-
-    # if f"initiated {domain}" not in eh.state:
-    #     if domain in domain and op == "upsert":
-    #         route53_op = "upsert"
-    #         eh.add_op("get_api_mapping")
-    #     else:
-    #         route53_op = "delete"
 
     if f"initiated {domain_key}" not in eh.state:
         if route53_op == "upsert":
