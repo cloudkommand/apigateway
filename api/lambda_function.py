@@ -71,7 +71,7 @@ def lambda_handler(event, context):
                 }
 
                 eh.add_op("setup_custom_domain", {"upsert": domains, "delete": old_domains})
-                upsert_domains = {k:v for k,v in domains.items() if (not isinstance(v, str)) or v.get("external_domain")}
+                upsert_domains = {k:v for k,v in domains.items() if isinstance(v, str) or (not v.get("external_domain"))}
                 eh.add_op("setup_route53", {"upsert": upsert_domains, "delete": copy.deepcopy(old_domains)})
             
             # previous_domain_names = prev_state.get("props", {}).get("domain_names") or []
