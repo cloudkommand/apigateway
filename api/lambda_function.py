@@ -578,6 +578,7 @@ def setup_custom_domain(stage_name, prev_state):
     delete_domains = op_val.get("delete")
     upsert_domains = op_val.get("upsert")
     print(f"domain, delete_domains={delete_domains}, upsert_domains={upsert_domains}")
+    using_domains = {}
     if delete_domains:
         using_domains = delete_domains
         route53_op = "delete"
@@ -739,6 +740,7 @@ def setup_route53(prev_state):
     upsert_domains = op_val.get("upsert")
     print(f"delete_domains = {delete_domains}")
     print(f"upsert_domains = {upsert_domains}")
+    using_domains = {}
     if delete_domains:
         route53_op = "delete"
         using_domains = delete_domains
