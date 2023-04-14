@@ -69,9 +69,11 @@ def lambda_handler(event, context):
                         "hosted_zone_id": prev_state['props'][f"{ROUTE53_KEY}_{k}"]['route53_hosted_zone_id']
                     } for k in (set(prev_domain_keys) - set(domain_keys))
                 }
-
+                print(f"domains: {domains}")
+                print(f"old_domains: {old_domains}")
                 eh.add_op("setup_custom_domain", {"upsert": domains, "delete": old_domains})
                 upsert_domains = {k:v for k,v in domains.items() if isinstance(v, str) or (not v.get("external_domain"))}
+                print(f"upsert_domains: {upsert_domains}")
                 eh.add_op("setup_route53", {"upsert": upsert_domains, "delete": copy.deepcopy(old_domains)})
             
             # previous_domain_names = prev_state.get("props", {}).get("domain_names") or []
@@ -586,45 +588,46 @@ def setup_custom_domain(stage_name, prev_state):
         using_domains = upsert_domains
         route53_op = "upsert"
         # eh.add_op("get_api_mapping")
+    
+    if len(list(using_domains.keys())) > 0:
+        domain_key = sorted(list(using_domains.keys()))[0]
+        domain = using_domains[domain_key].get("domain")
+        # hosted_zone_id = using_domains[domain_key].get("hosted_zone_id")
+        if not domain:
+            eh.perm_error("'domains' dictionary must contain a 'domain' key inside the domain key")
+            return
 
-    domain_key = sorted(list(using_domains.keys()))[0]
-    domain = using_domains[domain_key].get("domain")
-    # hosted_zone_id = using_domains[domain_key].get("hosted_zone_id")
-    if not domain:
-        eh.perm_error("'domains' dictionary must contain a 'domain' key inside the domain key")
-        return
+        if f"initiated {domain_key}" not in eh.state:
+            if route53_op == "upsert":
+                eh.add_op("get_api_mapping")
+            else:
+                # This gets used by the R53 handler as well
+                child_key = f"{CUSTOM_DOMAIN_KEY}_{domain_key}"
+                eh.add_props({child_key: prev_state['props'].get(child_key, {})})
 
-    if f"initiated {domain_key}" not in eh.state:
-        if route53_op == "upsert":
-            eh.add_op("get_api_mapping")
+            eh.add_op("handle_custom_domain", route53_op)
+            # eh.add_op("handle_route53_alias", route53_op)
+            eh.add_state({f"initiated {domain_key}": True})
+
+        handle_custom_domain(prev_state, domain, domain_key)
+        get_api_mapping(domain, route53_op)
+        create_api_mapping(domain, stage_name)
+        update_api_mapping(domain, stage_name)
+        remove_api_mappings(domain)
+        # handle_route53_alias(domain, domain_key)
+        if eh.error:
+            return 0
         else:
-            # This gets used by the R53 handler as well
-            child_key = f"{CUSTOM_DOMAIN_KEY}_{domain_key}"
-            eh.add_props({child_key: prev_state['props'].get(child_key, {})})
-
-        eh.add_op("handle_custom_domain", route53_op)
-        # eh.add_op("handle_route53_alias", route53_op)
-        eh.add_state({f"initiated {domain_key}": True})
-
-    handle_custom_domain(prev_state, domain, domain_key)
-    get_api_mapping(domain, route53_op)
-    create_api_mapping(domain, stage_name)
-    update_api_mapping(domain, stage_name)
-    remove_api_mappings(domain)
-    # handle_route53_alias(domain, domain_key)
-    if eh.error:
-        return 0
-    else:
-        if route53_op == "delete":
-            del delete_domains[domain_key]
-            # del eh.props[child_key]
-        else:            
-            del upsert_domains[domain_key]
-        if delete_domains or upsert_domains:
-            eh.add_op("setup_custom_domain", {"delete": delete_domains, "upsert": upsert_domains})
-            setup_custom_domain(stage_name, prev_state)
-        else:
-            eh.complete_op("setup_custom_domain")
+            if route53_op == "delete":
+                del delete_domains[domain_key]
+                # del eh.props[child_key]
+            else:            
+                del upsert_domains[domain_key]
+            if delete_domains or upsert_domains:
+                eh.add_op("setup_custom_domain", {"delete": delete_domains, "upsert": upsert_domains})
+                setup_custom_domain(stage_name, prev_state)
+            else:
+                eh.complete_op("setup_custom_domain")
         
 
 @ext(handler=eh, op="handle_custom_domain")
@@ -748,50 +751,51 @@ def setup_route53(prev_state):
         route53_op = "upsert"
         using_domains = upsert_domains
     
-    domain_key = list(using_domains.keys())[0]
-    domain = using_domains[domain_key].get("domain")
-    hosted_zone_id = using_domains[domain_key].get("hosted_zone_id")
-    if not domain:
-        eh.perm_error("'domains' dictionary must contain a 'domain' key inside the domain key")
-        return
+    if len(list(using_domains.keys())) > 0:
+        domain_key = list(using_domains.keys())[0]
+        domain = using_domains[domain_key].get("domain")
+        hosted_zone_id = using_domains[domain_key].get("hosted_zone_id")
+        if not domain:
+            eh.perm_error("'domains' dictionary must contain a 'domain' key inside the domain key")
+            return
 
-    custom_domain = eh.props.get(f"{CUSTOM_DOMAIN_KEY}_{domain_key}")
+        custom_domain = eh.props.get(f"{CUSTOM_DOMAIN_KEY}_{domain_key}")
 
-    component_def = remove_none_attributes({
-        "domain": domain,
-        "route53_hosted_zone_id": hosted_zone_id,
-        "target_api_hosted_zone_id": custom_domain.get("hosted_zone_id"),
-        "target_api_domain_name": custom_domain.get("api_gateway_domain_name")
-    })
+        component_def = remove_none_attributes({
+            "domain": domain,
+            "route53_hosted_zone_id": hosted_zone_id,
+            "target_api_hosted_zone_id": custom_domain.get("hosted_zone_id"),
+            "target_api_domain_name": custom_domain.get("api_gateway_domain_name")
+        })
 
-    function_arn = lambda_env('route53_extension_arn')
-    
-    child_key = f"{ROUTE53_KEY}_{domain_key}"
+        function_arn = lambda_env('route53_extension_arn')
+        
+        child_key = f"{ROUTE53_KEY}_{domain_key}"
 
-    if prev_state and prev_state.get("props", {}).get(child_key, {}):
-        eh.add_props({child_key: prev_state.get("props", {}).get(child_key, {})})
+        if prev_state and prev_state.get("props", {}).get(child_key, {}):
+            eh.add_props({child_key: prev_state.get("props", {}).get(child_key, {})})
 
-    proceed = eh.invoke_extension(
-        arn=function_arn, component_def=component_def, 
-        links_prefix=f"{ROUTE53_KEY} {domain_key} ", child_key=child_key, 
-        progress_start=85, progress_end=100, op=route53_op
-    )
+        proceed = eh.invoke_extension(
+            arn=function_arn, component_def=component_def, 
+            links_prefix=f"{ROUTE53_KEY} {domain_key} ", child_key=child_key, 
+            progress_start=85, progress_end=100, op=route53_op
+        )
 
-    if proceed:
-        # if (i != 1) or (len(list(available_domains.keys())) > 1) else "Website URL"
-        if route53_op == "delete":
-            del delete_domains[domain_key]
-            if eh.props.get(child_key):
-                del eh.props[child_key]
-            if eh.props.get(f"{CUSTOM_DOMAIN_KEY}_{domain_key}"):
-                del eh.props[f"{CUSTOM_DOMAIN_KEY}_{domain_key}"]
-        else:
-            del upsert_domains[domain_key]
-        if delete_domains or upsert_domains:
-            eh.add_op("setup_route53", {"delete": delete_domains, "upsert": upsert_domains})
-            setup_route53(prev_state)
-        else:
-            eh.complete_op("setup_route53")
+        if proceed:
+            # if (i != 1) or (len(list(available_domains.keys())) > 1) else "Website URL"
+            if route53_op == "delete":
+                del delete_domains[domain_key]
+                if eh.props.get(child_key):
+                    del eh.props[child_key]
+                if eh.props.get(f"{CUSTOM_DOMAIN_KEY}_{domain_key}"):
+                    del eh.props[f"{CUSTOM_DOMAIN_KEY}_{domain_key}"]
+            else:
+                del upsert_domains[domain_key]
+            if delete_domains or upsert_domains:
+                eh.add_op("setup_route53", {"delete": delete_domains, "upsert": upsert_domains})
+                setup_route53(prev_state)
+            else:
+                eh.complete_op("setup_route53")
 
 # @ext(handler=eh, op="handle_route53_alias")
 # def handle_route53_alias(domain_name, key):
