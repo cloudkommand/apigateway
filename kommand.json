@@ -185,6 +185,11 @@
                         "description": "The name of the stage, this is added to the URL of the API for all endpoints if calling directly through the default API URL and not through a custom domain name. CloudKommand recommends not setting this value and versioning APIs through routing with 'resources'",
                         "default": "live"
                     },
+                    "cloudfront": {
+                        "type": "boolean",
+                        "description": "Set this to true to place a Cloudfront Distribution in front of your API Gateway. This will connect directly to Route53 if you have that enabled.",
+                        "common": true
+                    },
                     "domains": {
                         "type": "object",
                         "description": "A set of key value pairs, with the keys being a namespace, and the values being either the domain name or a dictionary with keys 'domain' and (optional) 'hosted_zone_id'. Set hosted_zone_id if you want to use a private hosted zone in Route53.",
