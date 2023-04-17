@@ -28,7 +28,8 @@
             },
             "environment_variables": {
                 "domain_name_extension_arn": "@domain_name:props.function_arn",
-                "route53_extension_arn": "@route53.record:props.function_arn"
+                "route53_extension_arn": "@route53.record:props.function_arn",
+                "cloudfront_distribution_extension_arn": "@cloudfront.distribution:props.function_arn"
             },
             "input": {
                 "type": "object",
@@ -184,6 +185,19 @@
                         "type": "string",
                         "description": "The name of the stage, this is added to the URL of the API for all endpoints if calling directly through the default API URL and not through a custom domain name. CloudKommand recommends not setting this value and versioning APIs through routing with 'resources'",
                         "default": "live"
+                    },
+                    "cloudfront": {
+                        "type": "boolean",
+                        "description": "Set this to true to place a Cloudfront Distribution in front of your API Gateway. This will connect directly to Route53 if you have that enabled.",
+                        "common": true
+                    },
+                    "waf_web_acl_arn": {
+                        "type": "string",
+                        "description": "The ARN of the WAF Web ACL to attach to the API Gateway. This will be attached to the Cloudfront Distribution if you have that enabled."
+                    },
+                    "waf_web_id": {
+                        "type": "string",
+                        "description": "The ID of the WAF V1 ACL to attach to the API Gateway. This will be attached to the Cloudfront Distribution if you have that enabled."
                     },
                     "domains": {
                         "type": "object",
@@ -447,6 +461,7 @@
         }
     },
     "repos": {
+        "cloudfront": "https://github.com/cloudkommand/cloudfront",
         "route53": "https://github.com/cloudkommand/route53"
     }
 }
