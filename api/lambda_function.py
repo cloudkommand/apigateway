@@ -44,8 +44,11 @@ def lambda_handler(event, context):
         throttling_burst_limit = cdef.get("throttling_burst_limit")
         throttling_rate_limit = cdef.get("throttling_rate_limit")
 
+        # Cloudfront stuff only
         cloudfront_distribution_override_def = cdef.get(CLOUDFRONT_DISTRIBUTION_KEY) or {} #For cloudfront distribution overrides
         cloudfront = cdef.get("cloudfront") or bool(cloudfront_distribution_override_def)
+        waf_web_acl_arn = cdef.get("waf_web_acl_arn")
+        waf_acl_id = cdef.get("waf_acl_id")
 
         tags = cdef.get("tags") or {}
         domain_name = cdef.get("domain_name") or cdef.get("domain") or \
@@ -127,7 +130,7 @@ def lambda_handler(event, context):
         remove_tags()
         add_tags()
         setup_custom_domain(stage_name, prev_state)
-        setup_cloudfront_distribution(prev_state, cf_domains, cloudfront_distribution_override_def, stage_name)
+        setup_cloudfront_distribution(prev_state, cf_domains, cloudfront_distribution_override_def, stage_name, waf_web_acl_arn, waf_acl_id)
         setup_route53(prev_state, cloudfront)
         delete_api()
         remove_cloudwatch_log_group()
@@ -757,7 +760,7 @@ def remove_api_mappings(domain_name):
                 return 0
 
 @ext(handler=eh, op="setup_cloudfront_distribution")
-def setup_cloudfront_distribution(prev_state, domains, cloudfront_distribution_override_def, stage_name):
+def setup_cloudfront_distribution(prev_state, domains, cloudfront_distribution_override_def, stage_name, waf_web_acl_arn, waf_acl_id):
     # This handles the case where we were using cloudfront and we stopped using it.
     cloudfront_op = eh.ops['setup_cloudfront_distribution'].get("op")
     cloudfront_aliases = list(set(map(lambda x: x['domain'], domains.values())))
@@ -778,8 +781,11 @@ def setup_cloudfront_distribution(prev_state, domains, cloudfront_distribution_o
         "target_domain_name": target_endpoint,
         "https_only": True,
         "cache_policy_name": "CachingDisabled",
-        "origin_request_policy_name": "AllViewerExceptHostHeader",
-        "default_root_object": None
+        "origin_request_policy_name": "AllViewer",
+        "allowed_methods": ["GET", "HEAD", "OPTIONS", "PUT", "PATCH", "POST", "DELETE"],
+        "default_root_object": None,
+        "waf_web_acl_arn": waf_web_acl_arn,
+        "waf_acl_id": waf_acl_id,
     })
 
     component_def.update(cloudfront_distribution_override_def)
