@@ -28,7 +28,8 @@
             },
             "environment_variables": {
                 "domain_name_extension_arn": "@domain_name:props.function_arn",
-                "route53_extension_arn": "@route53.record:props.function_arn"
+                "route53_extension_arn": "@route53.record:props.function_arn",
+                "cloudfront_distribution_extension_arn": "@cloudfront.distribution:props.function_arn"
             },
             "input": {
                 "type": "object",
@@ -452,6 +453,7 @@
         }
     },
     "repos": {
+        "cloudfront": "https://github.com/cloudkommand/cloudfront",
         "route53": "https://github.com/cloudkommand/route53"
     }
 }
