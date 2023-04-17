@@ -778,7 +778,8 @@ def setup_cloudfront_distribution(prev_state, domains, cloudfront_distribution_o
         "target_domain_name": target_endpoint,
         "https_only": True,
         "cache_policy_name": "CachingDisabled",
-        "origin_request_policy_name": "AllViewerExceptHostHeader"
+        "origin_request_policy_name": "AllViewerExceptHostHeader",
+        "default_root_object": None
     })
 
     component_def.update(cloudfront_distribution_override_def)
