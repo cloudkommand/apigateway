@@ -57,6 +57,8 @@ def lambda_handler(event, context):
         else:
             domains = cdef.get("domains")
 
+        cf_domains = copy.deepcopy(domains)
+
         pass_back_data = event.get("pass_back_data", {})
         old_log_group_name = prev_state.get("props", {}).get("log_group_name")
         
@@ -125,7 +127,7 @@ def lambda_handler(event, context):
         remove_tags()
         add_tags()
         setup_custom_domain(stage_name, prev_state)
-        setup_cloudfront_distribution(prev_state, domains, cloudfront_distribution_override_def, stage_name)
+        setup_cloudfront_distribution(prev_state, cf_domains, cloudfront_distribution_override_def, stage_name)
         setup_route53(prev_state, cloudfront)
         delete_api()
         remove_cloudwatch_log_group()
