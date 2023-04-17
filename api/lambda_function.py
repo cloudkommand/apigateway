@@ -774,7 +774,7 @@ def setup_cloudfront_distribution(prev_state, domains, cloudfront_distribution_o
     component_def = remove_none_attributes({
         "aliases": cloudfront_aliases,
         "origin_path": f"/{stage_name}",
-        "target_url": f"https://{target_endpoint}",
+        "target_domain_name": target_endpoint,
         "https_only": True,
         "cache_policy_name": "CachingDisabled",
         "origin_request_policy_name": "AllViewerExceptHostHeader"
