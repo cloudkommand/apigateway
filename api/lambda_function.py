@@ -325,7 +325,12 @@ def remove_cloudwatch_log_group():
 
 @ext(handler=eh, op="create_api")
 def create_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, ):
-    definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
+    try:
+        definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
+    except Exception as ex:
+        eh.add_log("Invalid API Definition", {"error": str(ex)}, is_error=True)
+        eh.declare_return(200, 15, error_code=str(ex))
+        return 0
     print(f"definition = {definition}")
     print(type(definition))
 
