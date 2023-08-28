@@ -399,7 +399,8 @@ def update_api(name, resources, cors_configuration, authorizers, account_number,
     })
 
     eh.add_links({
-        "API in AWS": gen_api_link(response.get('ApiId'), region)
+        "API in AWS": gen_api_link(response.get('ApiId'), region),
+        "API Endpoint": response.get("ApiEndpoint")
     })
 
     prev_state = prev_state or {}
