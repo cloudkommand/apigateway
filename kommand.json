@@ -365,7 +365,7 @@
             "description": "Deploys an AWS API Gateway Custom Domain Name. Custom Domain Names are used to route calls from Route53 to an API Gateway",
             "cloud": "AWS",
             "resources": ["AWS::apigateway::customdomainname"],
-            "ck_plugin_tier": 4,
+            "ck_plugin_tier": 3,
             "policy": {
                 "Version": "2012-10-17",
                 "Statement": [{
@@ -455,6 +455,68 @@
                     "definition": {
                         "type": "&apigw.domain_name",
                         "base_domain": "example.com"
+                    }
+                }
+            ]
+        },
+        "domain_map": {
+            "type": "ext",
+            "displayname": "CK API Gateway Domain Name Mapping",
+            "description": "Deploys an AWS API Gateway Domain Name Mapping. Domain Name Mappings are used to map a custom domain name to an API Gateway",
+            "cloud": "AWS",
+            "resources": ["AWS::apigateway::apimapping"],
+            "ck_plugin_tier": 3,
+            "policy": {
+                "Version": "2012-10-17",
+                "Statement": [{
+                    "Sid": "Vis",
+                    "Effect": "Allow",
+                    "Action": [
+                        "apigateway:PUT",
+                        "apigateway:POST",
+                        "apigateway:PATCH",
+                        "apigateway:DELETE",
+                        "apigateway:GET"
+                    ],
+                    "Resource": "*"
+                }]
+            },
+            "props": {
+                "identifier": {
+                    "type": "string",
+                    "description": "The identifier for this mapping. The API mapping ID if it is mapped to a HTTP API, and the base path if it is mapped to a REST API"
+                }
+            },
+            "input": {
+                "type": "object",
+                "properties": {
+                    "api_id": {
+                        "type": "string",
+                        "description": "The ID of the API to map to this domain name"
+                    },
+                    "domain_name": {
+                        "type": "string",
+                        "description": "The domain name to map to this API"
+                    },
+                    "stage_name": {
+                        "type": "string",
+                        "description": "The stage to map to this API"
+                    }
+                },
+                "required": [
+                    "api_id",
+                    "domain_name",
+                    "stage_name"
+                ]
+            },
+            "examples": [
+                {
+                    "displayname": "Only One Type of Mapping",
+                    "definition": {
+                        "type": "&apigw.domain_map",
+                        "api_id": "o7zfr1sm8l",
+                        "stage_name": "live",
+                        "domain_name": "api.example.com"
                     }
                 }
             ]
