@@ -30,6 +30,11 @@ def lambda_handler(event, context):
         api_id = cdef.get("api_id")
         stage_name = cdef.get("stage_name")
         domain_name = cdef.get("domain_name")
+
+        if eh.state.get("version") == 2:
+            print("V2 API")
+        elif eh.state.get("version") == 1:
+            print("V1 API")
         
         eh.add_props({"name": domain_name})
         if pass_back_data:
@@ -63,6 +68,7 @@ def get_api(api_id):
         )
         eh.add_log("Got API", response)
         eh.add_state({"version": 2})
+        print("V2 API")
     except ClientError as e:
         if "Invalid API mapping_identifier specified" in str(e):
             # This is not an HTTP API, try the V1 API
@@ -72,18 +78,22 @@ def get_api(api_id):
                 )
                 eh.add_log("Got API", response)
                 eh.add_state({"version": 1})
+                print("V1 API")
             except ClientError as e:
                 handle_common_errors(e, eh, "Get API Failed", 2)
         else:
             handle_common_errors(e, eh, "Get API Failed", 2)
 
 @ext(handler=eh)
-def get_api_mapping(api_id, stage_name, domain_name, op):
+def get_api_mapping(api_id, domain_name, stage_name, op):
     try:
         if eh.state.get("version") == 2:
             response = apiv2.get_api_mappings(DomainName=domain_name)
             this_api_mappings = list(filter(lambda x: x["ApiId"] == api_id, response['Items']))
             this_stage_mappings = list(filter(lambda x: x["Stage"] == stage_name, this_api_mappings))
+
+            print(f"this_api_mappings = {this_api_mappings}")
+            print(f"this_stage_mappings = {this_stage_mappings}")
 
             if op == "delete":
                 if this_stage_mappings:
@@ -127,7 +137,7 @@ def get_api_mapping(api_id, stage_name, domain_name, op):
 
     
     except ClientError as e:
-        if e.response['Error']['Code'] != "NotFoundException":
+        if e.response['Error']['Code'] == "NotFoundException":
             eh.add_log("Domain Name Not Found", {"domain_name": domain_name}, is_error=True)
             eh.perm_error("Domain Name Not Found", 5)
         else:
