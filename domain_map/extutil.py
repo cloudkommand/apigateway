@@ -476,9 +476,6 @@ def ext_handler(f=None, handler=None):
 def ext(f=None, handler=None, op=None, complete_op=True):
     import functools
 
-    if not op:
-        op = f.__name__
-
     if not f:
         return functools.partial(
             ext,
@@ -486,6 +483,9 @@ def ext(f=None, handler=None, op=None, complete_op=True):
             op=op,
             complete_op=complete_op
         )
+
+    if not op:
+        op = f.__name__
 
     if not handler:
         raise Exception(f"Must pass handler of type ExtensionHandler to ext decorator")
