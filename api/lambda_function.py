@@ -65,7 +65,7 @@ def lambda_handler(event, context):
 
         # In case they don't provide {"key": {"domain": "www.example.com"}}, but instead {"key": "www.example.com"}
         domains = fix_domains(domains)
-        
+
         cf_domains = copy.deepcopy(domains)
 
         pass_back_data = event.get("pass_back_data", {})
@@ -702,7 +702,7 @@ def handle_api_mapping(prev_state, domain_name, domain_key):
         "stage_name": eh.props['stage_name']
     }
 
-    function_arn = lambda_env('api_mapping_extension_arn')
+    function_arn = lambda_env('domain_map_extension_arn') 
 
     child_key = f"{API_MAPPING_KEY}_{domain_key}"
 
