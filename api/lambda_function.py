@@ -55,12 +55,17 @@ def lambda_handler(event, context):
         domain_name = cdef.get("domain_name") or cdef.get("domain") or \
             (f"{component_safe_name(project_code, repo_id, cname, no_underscores=True, max_chars=112)}.{cdef.get('base_domain')}" 
             if cdef.get("base_domain") else None)
+
+        # For backwards compatibility
         domain_names = cdef.get("domain_names") or ([domain_name] if domain_name else [])
         if domain_names:
             domains = {str(i+1): {"domain": d} for i, d in enumerate(domain_names)}
         else:
             domains = cdef.get("domains")
 
+        # In case they don't provide {"key": {"domain": "www.example.com"}}, but instead {"key": "www.example.com"}
+        domains = fix_domains(domains)
+        
         cf_domains = copy.deepcopy(domains)
 
         pass_back_data = event.get("pass_back_data", {})
@@ -906,3 +911,13 @@ def setup_route53(prev_state, cloudfront):
 
 def gen_apigateway_arn(api_id, region):
     return f"arn:aws:apigateway:{region}::/apis/{api_id}"
+
+def fix_domains(domains):
+    retval = {}
+    if domains:
+        for domain_key, domain in domains.items():
+            if isinstance(domain, str):
+                retval[domain_key] = {"domain": domain}
+            else:
+                retval[domain_key] = domain
+    return retval
