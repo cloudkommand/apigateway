@@ -152,7 +152,7 @@ def create_api_mapping(api_id, domain_name, stage_name):
             eh.add_log("Created API Mapping", response)
         except ClientError as e:
             if "ApiMapping key already exists for this domain name" in str(e):
-                eh.add_log("Conflict, cannot Create API Mapping", {"api_id": eh.props['api_id'], "domain_name": domain_name, "stage_name": stage_name})
+                eh.add_log("Conflict, cannot Create API Mapping", {"api_id": api_id, "domain_name": domain_name, "stage_name": stage_name})
                 eh.perm_error("API Mapping Already Exists for this Domain", 20)
             else:
                 handle_common_errors(e, eh, "Create API Mapping Failed", 20)
@@ -167,11 +167,11 @@ def create_api_mapping(api_id, domain_name, stage_name):
 
         except ClientError as e:
             if "already exists" in str(e):
-                eh.add_log("Conflict, cannot Create API Mapping", {"api_id": eh.props['api_id'], "domain_name": domain_name, "stage_name": stage_name})
+                eh.add_log("Conflict, cannot Create API Mapping", {"api_id": api_id, "domain_name": domain_name, "stage_name": stage_name})
                 eh.perm_error("API Mapping Already Exists for this Domain", 20)
             elif e.response['Error']['Code'] == "BadRequestException":
                 if "Invalid stage identifier specified" in str(e):
-                    eh.add_log("Invalid Stage", {"api_id": eh.props['api_id'], "domain_name": domain_name, "stage_name": stage_name}, is_error=True)
+                    eh.add_log("Invalid Stage", {"api_id": api_id, "domain_name": domain_name, "stage_name": stage_name}, is_error=True)
                     eh.perm_error("Invalid Stage", 20)
                 else:
                     handle_common_errors(e, eh, "Create API Mapping Failed", 20, perm_errors=["BadRequestException"])
