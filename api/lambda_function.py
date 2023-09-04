@@ -490,7 +490,7 @@ def create_stage(stage_variables, throttling_burst_limit, throttling_rate_limit)
     response = apiv2.create_stage(**payload)
 
     eh.add_log("Stage Created", {"params": payload})
-    endpoint_with_stage = f"{eh.props['api_endpoint']}/{stage_name}"
+    endpoint_with_stage = f"{eh.props['api_endpoint']}/{stage_name}/"
     eh.add_props({
         "stage_name": stage_name,
         "endpoint_with_stage": endpoint_with_stage
