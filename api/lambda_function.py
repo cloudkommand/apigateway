@@ -14,6 +14,7 @@ eh = ExtensionHandler()
 
 ROUTE53_KEY = "Route53"
 CUSTOM_DOMAIN_KEY = "Domain"
+API_MAPPING_KEY = "Mapping"
 CLOUDFRONT_DISTRIBUTION_KEY = "Distribution"
 
 apiv2 = boto3.client("apigatewayv2")
@@ -631,7 +632,7 @@ def setup_custom_domain(stage_name, prev_state):
 
     if f"initiated {domain_key}" not in eh.state:
         if route53_op == "upsert":
-            eh.add_op("get_api_mapping")
+            eh.add_op("handle_api_mapping", route53_op)
         else:
             # This gets used by the R53 handler as well
             child_key = f"{CUSTOM_DOMAIN_KEY}_{domain_key}"
@@ -642,10 +643,10 @@ def setup_custom_domain(stage_name, prev_state):
         eh.add_state({f"initiated {domain_key}": True})
 
     handle_custom_domain(prev_state, domain, domain_key)
-    get_api_mapping(domain, route53_op)
-    create_api_mapping(domain, stage_name)
-    update_api_mapping(domain, stage_name)
-    remove_api_mappings(domain)
+    handle_api_mapping(prev_state, domain, domain_key)
+    # create_api_mapping(domain, stage_name)
+    # update_api_mapping(domain, stage_name)
+    # remove_api_mappings(domain)
     # handle_route53_alias(domain, domain_key)
     if eh.error:
         return 0
@@ -688,82 +689,105 @@ def handle_custom_domain(prev_state, domain_name, domain_key):
     #     eh.add_links({"Website URL": f'http://{eh.props["Route53"].get("domain")}'})
     # print(f"proceed = {proceed}")       
 
+@ext(handler=eh, op="handle_api_mapping")
+def handle_api_mapping(prev_state, domain_name, domain_key):
+    component_def = {
+        "domain_name": domain_name,
+        "api_id": eh.props['api_id'],
+        "stage_name": eh.props['stage_name']
+    }
 
-@ext(handler=eh, op="get_api_mapping")
-def get_api_mapping(domain_name, route53_op):
-    response = apiv2.get_api_mappings(DomainName=domain_name)
-    these_mappings = list(filter(lambda x: x["ApiId"] == eh.props['api_id'], response['Items']))
+    function_arn = lambda_env('api_mapping_extension_arn')
+
+    child_key = f"{API_MAPPING_KEY}_{domain_key}"
+
+    if eh.ops["handle_api_mapping"] == "upsert" and prev_state and prev_state.get("props", {}).get(child_key, {}):
+        eh.add_props({child_key: prev_state.get("props", {}).get(child_key, {})})
+
+    proceed = eh.invoke_extension(
+        arn=function_arn, component_def=component_def,
+        child_key=child_key, progress_start=90, progress_end=95,
+        op=eh.ops["handle_api_mapping"],
+        links_prefix=f"{API_MAPPING_KEY} {domain_key}"
+    )
+
+    print(f"Post invoke, extension props = {eh.props}")
+
+# @ext(handler=eh, op="get_api_mapping")
+# def get_api_mapping(domain_name, route53_op):
+#     response = apiv2.get_api_mappings(DomainName=domain_name)
+#     these_mappings = list(filter(lambda x: x["ApiId"] == eh.props['api_id'], response['Items']))
     
-    if these_mappings and route53_op == "delete":
-        eh.add_op("remove_api_mappings", list(map(lambda x: x['ApiMappingId'], these_mappings)))
+#     if these_mappings and route53_op == "delete":
+#         eh.add_op("remove_api_mappings", list(map(lambda x: x['ApiMappingId'], these_mappings)))
 
-    elif not these_mappings and route53_op == "upsert":
-        eh.add_op("create_api_mapping")
+#     elif not these_mappings and route53_op == "upsert":
+#         eh.add_op("create_api_mapping")
 
-    elif route53_op == "upsert":
-        eh.add_op("update_api_mapping", these_mappings[0].get("ApiMappingId"))
-        if len(these_mappings) > 1:
-            eh.add_op("remove_api_mappings", list(map(lambda x: x['ApiMappingId'], these_mappings[1:])))
+#     elif route53_op == "upsert":
+#         eh.add_op("update_api_mapping", these_mappings[0].get("ApiMappingId"))
+#         if len(these_mappings) > 1:
+#             eh.add_op("remove_api_mappings", list(map(lambda x: x['ApiMappingId'], these_mappings[1:])))
 
-    else:
-        print(f"Nothing to do for domain_name {domain_name}")
+#     else:
+#         print(f"Nothing to do for domain_name {domain_name}")
 
-@ext(handler=eh, op="create_api_mapping")
-def create_api_mapping(domain_name, stage_name):
+# @ext(handler=eh, op="create_api_mapping")
+# def create_api_mapping(domain_name, stage_name):
 
-    try:
-        response = apiv2.create_api_mapping(
-            ApiId=eh.props['api_id'],
-            DomainName=domain_name,
-            Stage=stage_name
-        )
+#     try:
+#         response = apiv2.create_api_mapping(
+#             ApiId=eh.props['api_id'],
+#             DomainName=domain_name,
+#             Stage=stage_name
+#         )
 
-        api_mapping_props = eh.props.get("api_mappings") or {}
-        api_mapping_props[domain_name] = response.get("ApiMappingId")
-        eh.add_props({"api_mappings": api_mapping_props})
-        eh.add_log("Created API Mapping", response)
-    except ClientError as e:
-        if "ApiMapping key already exists for this domain name" in str(e):
-            eh.add_log("Conflict, cannot Create API Mapping", {"api_id": eh.props['api_id'], "domain_name": domain_name, "stage_name": stage_name})
-            eh.perm_error("API Mapping Already Exists for this Domain", 91)
-        else:
-            handle_common_errors(e, eh, "Create API Mapping Failed", 91)
+#         api_mapping_props = eh.props.get("api_mappings") or {}
+#         api_mapping_props[domain_name] = response.get("ApiMappingId")
+#         eh.add_props({"api_mappings": api_mapping_props})
+#         eh.add_log("Created API Mapping", response)
+#     except ClientError as e:
+#         if "ApiMapping key already exists for this domain name" in str(e):
+#             eh.add_log("Conflict, cannot Create API Mapping", {"api_id": eh.props['api_id'], "domain_name": domain_name, "stage_name": stage_name})
+#             eh.perm_error("API Mapping Already Exists for this Domain", 91)
+#         else:
+#             handle_common_errors(e, eh, "Create API Mapping Failed", 91)
 
-@ext(handler=eh, op="update_api_mapping")
-def update_api_mapping(domain_name, stage_name):
+# @ext(handler=eh, op="update_api_mapping")
+# def update_api_mapping(domain_name, stage_name):
 
-    try:
-        response = apiv2.update_api_mapping(
-            ApiId=eh.props['api_id'],
-            ApiMappingId=eh.ops['update_api_mapping'],
-            DomainName=domain_name,
-            Stage=stage_name
-        )
+#     try:
+#         response = apiv2.update_api_mapping(
+#             ApiId=eh.props['api_id'],
+#             ApiMappingId=eh.ops['update_api_mapping'],
+#             DomainName=domain_name,
+#             Stage=stage_name
+#         )
 
-        api_mapping_props = eh.props.get("api_mappings") or {}
-        api_mapping_props[domain_name] = response.get("ApiMappingId")
-        eh.add_props({"api_mappings": api_mapping_props})
-        eh.add_log("Updated API Mapping", response)
-    except ClientError as e:
-        handle_common_errors(e, eh, "Update API Mapping Failed", 91)
+#         api_mapping_props = eh.props.get("api_mappings") or {}
+#         api_mapping_props[domain_name] = response.get("ApiMappingId")
+#         eh.add_props({"api_mappings": api_mapping_props})
+#         eh.add_log("Updated API Mapping", response)
+#     except ClientError as e:
+#         handle_common_errors(e, eh, "Update API Mapping Failed", 91)
 
-@ext(handler=eh, op="remove_api_mappings")
-def remove_api_mappings(domain_name):
+# @ext(handler=eh, op="remove_api_mappings")
+# def remove_api_mappings(domain_name):
 
-    for api_mapping_id in eh.ops['remove_api_mappings']:
-        try:
-            apiv2.delete_api_mapping(
-                ApiMappingId=api_mapping_id,
-                DomainName=domain_name
-            )
-            eh.add_log("Removed API Mapping", {"id": api_mapping_id, "domain_name": domain_name})
+#     for api_mapping_id in eh.ops['remove_api_mappings']:
+#         try:
+#             apiv2.delete_api_mapping(
+#                 ApiMappingId=api_mapping_id,
+#                 DomainName=domain_name
+#             )
+#             eh.add_log("Removed API Mapping", {"id": api_mapping_id, "domain_name": domain_name})
 
-        except ClientError as e:
-            if e.response['Error']['Code'] != "NotFoundException":
-                handle_common_errors(e, eh, "Delete API Mapping Failed", 91)
-            else:
-                eh.add_log("API Mapping Not found", {"id": api_mapping_id})
-                return 0
+#         except ClientError as e:
+#             if e.response['Error']['Code'] != "NotFoundException":
+#                 handle_common_errors(e, eh, "Delete API Mapping Failed", 91)
+#             else:
+#                 eh.add_log("API Mapping Not found", {"id": api_mapping_id})
+#                 return 0
 
 @ext(handler=eh, op="setup_cloudfront_distribution")
 def setup_cloudfront_distribution(prev_state, domains, cloudfront_distribution_override_def, stage_name, waf_web_acl_arn, waf_acl_id):
