@@ -7,7 +7,7 @@ import traceback
 
 from extutil import remove_none_attributes, gen_log, creturn, handle_common_errors, \
     account_context, component_safe_name, ExtensionHandler, ext, lambda_env, \
-    random_id
+    random_id, ext_handler
 
 eh = ExtensionHandler()
 
@@ -15,12 +15,9 @@ apiv2 = boto3.client("apigatewayv2")
 apiv1 = boto3.client("apigateway")
 acm = boto3.client("acm")
 
-
+@ext_handler(handler=eh)
 def lambda_handler(event, context):
     try:
-        print(event)
-        eh.capture_event(event)
-
         prev_state = event.get("prev_state") or {}
         op = event.get("op")
 
@@ -51,14 +48,11 @@ def lambda_handler(event, context):
         remove_api_mappings(domain_name)
         update_api_mapping(api_id, domain_name, stage_name)
 
-        return eh.finish()
-
     except Exception as e:
         msg = traceback.format_exc()
         print(msg)
         eh.add_log("Unexpected Error", {"error": str(e)}, is_error=True)
         eh.declare_return(200, 0, error_code=str(e))
-        return eh.finish()
 
 @ext(handler=eh)
 def get_api(api_id):

@@ -449,7 +449,29 @@ class ExtensionHandler:
             pass_back_data, self.state or None, self.props, self.links, self.callback_sec, self.error_details,
             self.artifacts or None
         )
-    
+
+# Handles returning and initializing the ExtensionHandler
+def ext_handler(f=None, handler=None):
+    import functools
+
+    if not handler:
+        raise Exception(f"Must pass handler of type ExtensionHandler to ext_handler decorator")
+
+    if not f:
+        return functools.partial(
+            ext_handler,
+            handler=handler
+        )
+
+    @functools.wraps(f)
+    def the_wrapper_around_the_original_function(*args, **kwargs):
+        print(args[0])
+        handler.capture_event(args[0])
+        f(*args, **kwargs)
+        return handler.finish()
+        
+    return the_wrapper_around_the_original_function
+
 # A decorator
 def ext(f=None, handler=None, op=None, complete_op=True):
     import functools
