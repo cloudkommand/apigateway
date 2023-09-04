@@ -453,7 +453,10 @@ class ExtensionHandler:
 # A decorator
 def ext(f=None, handler=None, op=None, complete_op=True):
     import functools
-    
+
+    if not op:
+        op = f.__name__
+
     if not f:
         return functools.partial(
             ext,
