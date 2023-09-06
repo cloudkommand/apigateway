@@ -426,6 +426,12 @@
                         "type": "object",
                         "description": "A set of key-value pairs to attach to this API Gateway custom domain name as tags",
                         "common": true
+                    },
+                    "endpoint_type": {
+                        "type": "string",
+                        "enum": ["REGIONAL", "EDGE"],
+                        "description": "The API type that you want this custom domain name to be able to be associated with. REGIONAL is for regional REST APIs, private APIs, and HTTP APIs. EDGE is for edge-optimized REST APIs.",
+                        "default": "REGIONAL"
                     }
                 },
                 "anyOf": [{
