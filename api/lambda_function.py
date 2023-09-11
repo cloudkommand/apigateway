@@ -17,6 +17,7 @@ CUSTOM_DOMAIN_KEY = "Domain"
 API_MAPPING_KEY = "Mapping"
 CLOUDFRONT_DISTRIBUTION_KEY = "Distribution"
 
+apiv1 = boto3.client("apigateway")
 apiv2 = boto3.client("apigatewayv2")
 
 def lambda_handler(event, context):
@@ -44,6 +45,17 @@ def lambda_handler(event, context):
         stage_variables = cdef.get("stage_variables")
         throttling_burst_limit = cdef.get("throttling_burst_limit")
         throttling_rate_limit = cdef.get("throttling_rate_limit")
+        api_type = cdef.get("api_type") or "HTTP" # HTTP, REGIONAL, PRIVATE, EDGE
+        
+        previous_render_def = prev_state.get("rendef")
+        if previous_render_def and ((api_type == "HTTP" or previous_render_def.get("api_type", "HTTP") == "HTTP") and api_type != previous_render_def.get("api_type", "HTTP")):
+            eh.perm_error("Cannot change API type to/from HTTP", 0)
+            eh.add_log("API Type Change", {"from": previous_render_def.get("api_type", "HTTP"), "to": api_type}, is_error=True)
+            return eh.finish()
+
+        previous_api_type = previous_render_def.get("api_type", "HTTP") if previous_render_def else None
+        vpc_endpoint_ids = cdef.get("vpc_endpoint_ids", []) if api_type == "PRIVATE" else None
+        resource_policy = cdef.get("resource_policy") or generate_private_resource_policy(vpc_endpoint_ids)
 
         # Cloudfront stuff only
         cloudfront_distribution_override_def = cdef.get(CLOUDFRONT_DISTRIBUTION_KEY) or {} #For cloudfront distribution overrides
@@ -113,7 +125,7 @@ def lambda_handler(event, context):
                     })
 
         elif event.get("op") == "delete":
-            eh.add_op("delete_api", api_id)
+            eh.add_op("delete_api", {"api_id": api_id, "api_type": api_type})
             if domains:
                 # eh.add_state({"all_domain_names": domain_names})
                 eh.add_op("setup_custom_domain", {"delete": domains})
@@ -123,15 +135,22 @@ def lambda_handler(event, context):
                 if cloudfront:
                     eh.add_op("setup_cloudfront_distribution", {"op":"delete"})
 
+        desired_rest_stage_config = remove_none_attributes({
+            "stageName": stage_name,
+            "description": cdef.get("stage_description"),
+            "cacheClusterEnabled": cdef.get("cache_enabled"),
+            "cacheClusterSize": cdef.get("cache_size", "1.6") if cdef.get("cache_enabled") else None,
+            "tracingEnabled": cdef.get("tracing_enabled") or False,
+        })
 
-        get_current_state(log_group_name, api_id, old_log_group_name, stage_name, region, tags)
+        get_current_state(log_group_name, api_id, old_log_group_name, stage_name, region, tags, api_type, previous_api_type, desired_rest_stage_config, vpc_endpoint_ids, resource_policy)
         create_cloudwatch_log_group(region, account_number)
-        create_api(api_name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region)
-        update_api(api_name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_id, prev_state)
+        create_api(api_name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_type, vpc_endpoint_ids, resource_policy)
+        update_api(api_name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_id, prev_state, api_type)
         add_lambda_permissions(account_number)
-        create_stage(stage_variables, throttling_burst_limit, throttling_rate_limit)
-        update_stage(stage_variables, throttling_burst_limit, throttling_rate_limit)
-        delete_stage()
+        create_stage(api_type, stage_variables, throttling_burst_limit, throttling_rate_limit)
+        update_stage(api_type, stage_name, stage_variables, throttling_burst_limit, throttling_rate_limit)
+        delete_stage(api_type)
         confirm_stage_deployment()
         remove_tags()
         add_tags()
@@ -151,7 +170,7 @@ def lambda_handler(event, context):
         return eh.finish()
 
 @ext(handler=eh, op="get_current_state")
-def get_current_state(log_group_name, api_id, old_log_group_name, stage_name, region, tags):
+def get_current_state(log_group_name, api_id, old_log_group_name, stage_name, region, tags, api_type, previous_api_type, desired_rest_stage_config, vpc_endpoint_ids, resource_policy):
     """ 
         Get API result:
         'ApiEndpoint': 'string',
@@ -237,53 +256,105 @@ def get_current_state(log_group_name, api_id, old_log_group_name, stage_name, re
         })
     
     if api_id:
-        apiv2 = boto3.client("apigatewayv2")
-
-        try:
-            response = apiv2.get_api(
-                ApiId=api_id
-            )
-            eh.add_log("Got API", response)
-            eh.add_op("update_api")
-            current_tags = response.get("Tags") or {}
-            if tags != current_tags:
-                remove_tags = [k for k in current_tags.keys() if k not in tags]
-                add_tags = {k:v for k,v in tags.items() if k not in current_tags.keys()}
-                if remove_tags:
-                    eh.add_op("remove_tags", remove_tags)
-                if add_tags:
-                    eh.add_op("add_tags", add_tags)
+        if previous_api_type == "HTTP":
             try:
-                response = apiv2.get_stages(ApiId=api_id)
-                eh.add_log("Got Stages", response)
-                items = response.get("Items") or []
-                our_stage = list(filter(lambda x: x['StageName'] == stage_name, items))
-                if our_stage:
-                    eh.add_op("update_stage", stage_name)
-                else:
+                response = apiv2.get_api(
+                    ApiId=api_id
+                )
+                eh.add_log("Got API", response)
+                eh.add_op("update_api")
+                current_tags = response.get("Tags") or {}
+                if tags != current_tags:
+                    remove_tags = [k for k in current_tags.keys() if k not in tags]
+                    add_tags = {k:v for k,v in tags.items() if k not in current_tags.keys()}
+                    if remove_tags:
+                        eh.add_op("remove_tags", remove_tags)
+                    if add_tags:
+                        eh.add_op("add_tags", add_tags)
+                try:
+                    response = apiv2.get_stages(ApiId=api_id)
+                    eh.add_log("Got Stages", response)
+                    items = response.get("Items") or []
+                    our_stage = list(filter(lambda x: x['StageName'] == stage_name, items))
+                    if our_stage:
+                        eh.add_op("update_stage", stage_name)
+                    else:
+                        eh.add_op("create_stage", stage_name)
+
+                    delete_stages = list(map(lambda x: x['StageName'], filter(lambda x: x['StageName'] != stage_name, items)))
+                    if delete_stages:
+                        eh.add_op("delete_stage", delete_stages)
+
+                except Exception as ex:
+                    eh.add_log("Unlikely Error", {"error": str(ex)}, is_error=True)
+                    eh.declare_return(200, 0, error_code=str(ex))
+
+            except botocore.exceptions.ClientError as e:
+                if e.response['Error']['Code'] == 'NotFoundException':
+                    eh.add_log("API Does Not Exist", {"api_id": api_id})
+                    eh.add_op("create_api")
                     eh.add_op("create_stage", stage_name)
-
-                delete_stages = list(map(lambda x: x['StageName'], filter(lambda x: x['StageName'] != stage_name, items)))
-                if delete_stages:
-                    eh.add_op("delete_stage", delete_stages)
-
+                    if tags:
+                        eh.add_op("add_tags", tags) 
+                else:
+                    raise e
             except Exception as ex:
                 eh.add_log("Unlikely Error", {"error": str(ex)}, is_error=True)
                 eh.declare_return(200, 0, error_code=str(ex))
+        else:
+            try:
+                response = apiv1.get_rest_api(
+                    restApiId=api_id
+                )
+                eh.add_log("Got API", response)
+                eh.add_op("update_api")
+                current_tags = response.get("tags") or {}
+                if tags != current_tags:
+                    remove_tags = [k for k in current_tags.keys() if k not in tags]
+                    add_tags = {k:v for k,v in tags.items() if k not in current_tags.keys()}
+                    if remove_tags:
+                        eh.add_op("remove_tags", remove_tags)
+                    if add_tags:
+                        eh.add_op("add_tags", add_tags)
+                current_api_type = response.get("endpointConfiguration", {}).get("types", ["REGIONAL"])[0]
+                if current_api_type != api_type:
+                    update_rest_api_params = {"api_type": api_type}
+                    if api_type == "PRIVATE" and vpc_endpoint_ids:
+                        update_rest_api_params["add_vpc_endpoint_ids"] = vpc_endpoint_ids
+                    eh.add_op("update_rest_api_params", update_rest_api_params)
+                elif api_type == "PRIVATE":
+                    # Need to check VPC Endpoint IDs
+                    current_vpc_endpoint_ids = response.get("endpointConfiguration", {}).get("vpcEndpointIds", [])
+                    eh.add_op("update_rest_api_params", {
+                        "add_vpc_endpoint_ids": list(set(vpc_endpoint_ids) - set(current_vpc_endpoint_ids)),
+                        "remove_vpc_endpoint_ids": list(set(current_vpc_endpoint_ids) - set(vpc_endpoint_ids)),
+                        "policy": resource_policy
+                    })
 
-        except botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == 'NotFoundException':
-                eh.add_log("API Does Not Exist", {"api_id": api_id})
-                eh.add_op("create_api")
-                eh.add_op("create_stage", stage_name)
-                if tags:
-                    eh.add_op("add_tags", tags) 
-            else:
-                raise e
-        except Exception as ex:
-            eh.add_log("Unlikely Error", {"error": str(ex)}, is_error=True)
-            eh.declare_return(200, 0, error_code=str(ex))
+                try:
+                    response = apiv1.get_stages(restApiId=api_id)
+                    eh.add_log("Got Stages", response)
+                    our_stage = list(filter(lambda x: x['stageName'] == stage_name, response.get("item", [])))
+                    if our_stage:
+                        update_values = {}
+                        for k,v in desired_rest_stage_config.items():
+                            if our_stage[0].get(k) != v:
+                                update_values[k] = v
+                        # Need to update stage no matter what because
+                        # we need to redeploy the API, and we don't
+                        # know if the routes have changed or not.
+                        eh.add_op("update_stage", update_values)
+                    else:
+                        eh.add_op("create_stage", desired_rest_stage_config)
 
+                    delete_stages = list(map(lambda x: x['stageName'], filter(lambda x: x['stageName'] != stage_name, response.get("item", []))))
+                    if delete_stages:
+                        eh.add_op("delete_stage", delete_stages)
+                except ClientError as e:
+                    handle_common_errors(e, eh, "Get Stages Failed", 2)
+            except ClientError as e:
+                handle_common_errors(e, eh, "Get API Failed", 0)
+      
     else:
         eh.add_op("create_api")
         eh.add_op("create_stage", stage_name)
@@ -330,83 +401,131 @@ def remove_cloudwatch_log_group():
         eh.add_log("Log Group Doesn't Exist", {"log_group_name": log_group_name})
 
 @ext(handler=eh, op="create_api")
-def create_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, ):
-    try:
-        definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
-    except Exception as ex:
-        eh.add_log("Invalid API Definition", {"error": str(ex)}, is_error=True)
-        eh.declare_return(200, 15, error_code=str(ex))
-        return 0
-    print(f"definition = {definition}")
-    print(type(definition))
+def create_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_type, vpc_endpoint_ids, resource_policy):
+    if api_type == "HTTP":
+        try:
+            definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
+        except Exception as ex:
+            eh.add_log("Invalid API Definition", {"error": str(ex)}, is_error=True)
+            eh.declare_return(200, 15, error_code=str(ex))
+            return 0
+        print(f"definition = {definition}")
+        print(type(definition))
 
-    try:
-        response = apiv2.import_api(
-            Body = json.dumps(definition)
-        )
-        eh.add_log("Created API", response)
-    except botocore.exceptions.ClientError as ex:
-        if ex.response['Error']['Code'] == "BadRequestException":
-            eh.add_log("Invalid API Specification", {"error": str(ex)})
-            eh.perm_error(str(ex), 15)
-            return 0
-        else:
-            print(str(ex))
-            eh.add_log("Failed to Create API", {"error", str(ex)}, is_error=True)
-            eh.retry_error(str(ex), 15)
-            return 0
+        try:
+            response = apiv2.import_api(
+                Body = json.dumps(definition)
+            )
+            api_id = response.get("ApiId")
+            api_endpoint = response.get("ApiEndpoint")
+            name = response.get("Name")
+        except botocore.exceptions.ClientError as ex:
+            if ex.response['Error']['Code'] == "BadRequestException":
+                eh.add_log("Invalid API Specification", {"error": str(ex)})
+                eh.perm_error(str(ex), 15)
+                return 0
+            else:
+                print(str(ex))
+                eh.add_log("Failed to Create API", {"error", str(ex)}, is_error=True)
+                eh.retry_error(str(ex), 15)
+                return 0
+    
+    else:
+        try:
+            create_rest_api_params = remove_none_attributes({
+                "name": name,
+                "endpointConfiguration": remove_none_attributes({
+                    "types": [api_type],
+                    "vpcEndpointIds": vpc_endpoint_ids or None
+                }),
+                "policy": resource_policy
+            })
+
+            response = apiv1.create_rest_api(**create_rest_api_params)
+
+            api_id = response.get("id")
+            name = response.get("name")
+            api_endpoint = f"https://{api_id}.execute-api.{region}.amazonaws.com"
+
+            eh.add_op("update_api")
+            
+        except botocore.exceptions.ClientError as ex:
+            if ex.response['Error']['Code'] == "BadRequestException":
+                eh.add_log("Invalid API Specification", {"error": str(ex)})
+                eh.perm_error(str(ex), 15)
+                return 0
+            else:
+                print(str(ex))
+                eh.add_log("Failed to Create API", {"error", str(ex)}, is_error=True)
+                eh.retry_error(str(ex), 15)
+                return 0
+    
+    eh.add_log("Created API", response)
 
     eh.add_props({
-        "api_id": response.get("ApiId"),
-        "arn": gen_apigateway_arn(response.get("ApiId"), region),
-        "api_endpoint": response.get("ApiEndpoint"),
-        "name": response.get("Name"),
+        "api_id": api_id,
+        "arn": gen_apigateway_arn(api_id, region),
+        "api_endpoint": api_endpoint,
+        "name": name,
         "lambdas": lambdas
     })
 
     eh.add_links({
-        "API in AWS": gen_api_link(response.get('ApiId'), region),
-        "API Endpoint": response.get("ApiEndpoint")
+        "API in AWS": gen_api_link(api_id, region),
+        "API Endpoint": api_endpoint
     })
 
     if lambdas:
         eh.add_op("add_lambda_permissions", lambdas)
 
 
-@ext(handler=eh, op="update_api")
-def update_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_id, prev_state):
+@ext(handler=eh)
+def update_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_id, prev_state, api_type):
     definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
     print(f"definition = {definition}")
 
-    try:
-        response = apiv2.reimport_api(
-            ApiId=api_id,
-            Body = json.dumps(definition)
-        )
-        eh.add_log("Reimported API", response)
-    except botocore.exceptions.ClientError as ex:
-        if ex.response['Error']['Code'] == "BadRequestException":
-            eh.add_log("Invalid API Specification", {"error": str(ex)})
-            eh.perm_error(str(ex), 15)
+    if api_type == "HTTP":
+        try:
+            response = apiv2.reimport_api(
+                ApiId=api_id,
+                Body = json.dumps(definition)
+            )
+            eh.add_log("Reimported API", response)
+            api_id = response.get("ApiId")
+            api_endpoint = response.get("ApiEndpoint")
+            name = response.get("Name")
+        except botocore.exceptions.ClientError as e:
+            handle_common_errors(e, eh, "Failed to Reimport API", 15, ["BadRequestException"])
             return 0
-        else:
-            print(str(ex))
-            eh.add_log("Failed to Reimport API", {"error", str(ex)}, is_error=True)
-            eh.declare_return(200, 15, error_code=str(ex))
+    
+    else:
+        try:
+            response = apiv1.put_rest_api(
+                restApiId=api_id,
+                mode="overwrite",
+                body = json.dumps(definition)
+            )
+
+            api_id = response.get("id")
+            name = response.get("name")
+            api_endpoint = f"https://{api_id}.execute-api.{region}.amazonaws.com"
+
+        except ClientError as e:
+            handle_common_errors(e, eh, "Updating API Routes Failed", 15, ["BadRequestException"])
             return 0
 
     # eh.add_op("update_stage")
     eh.add_props({
-        "api_id": response.get("ApiId"),
-        "arn": gen_apigateway_arn(response.get("ApiId"), region),
-        "api_endpoint": response.get("ApiEndpoint"),
-        "name": response.get("Name"),
+        "api_id": api_id,
+        "arn": gen_apigateway_arn(api_id, region),
+        "api_endpoint": api_endpoint,
+        "name": name,
         "lambdas": lambdas
     })
 
     eh.add_links({
-        "API in AWS": gen_api_link(response.get('ApiId'), region),
-        "API Endpoint": response.get("ApiEndpoint")
+        "API in AWS": gen_api_link(api_id, region),
+        "API Endpoint": api_endpoint
     })
 
     prev_state = prev_state or {}
@@ -414,28 +533,81 @@ def update_api(name, resources, cors_configuration, authorizers, account_number,
         eh.add_op("add_lambda_permissions", lambdas)
 
 
+@ext(handler=eh)
+def update_rest_api_params():
+    patch_operations = []
+    for k,v in eh.ops['update_rest_api_params'].items():
+        if k == "api_type":
+            patch_operations.append({
+                "op": "replace",
+                "path": "/endpointConfiguration/types/0",
+                "value": v
+            })
+        elif k == "add_vpc_endpoint_ids":
+            patch_operations.extend([{
+                "op": "add",
+                "path": "/endpointConfiguration/vpcEndpointIds",
+                "value": vpc_endpoint_id
+            } for vpc_endpoint_id in v])
+        elif k == "remove_vpc_endpoint_ids":
+            patch_operations.extend([{
+                "op": "remove",
+                "path": "/endpointConfiguration/vpcEndpointIds",
+                "value": vpc_endpoint_id
+            } for vpc_endpoint_id in v])
+        elif k == "policy":
+            patch_operations.append({
+                "op": "replace",
+                "path": "/policy",
+                "value": v
+            })
+
+    try:
+        response = apiv1.update_rest_api(
+            restApiId=eh.props['api_id'],
+            patchOperations=patch_operations
+        )
+        eh.add_log("Updated API", response)
+    except ClientError as e:
+        handle_common_errors(e, eh, "Update API Core Failed", 25, ["BadRequestException"])
+
+    
+
 def gen_api_link(api_id, region):
     return f"https://console.aws.amazon.com/apigateway/main/api-detail?api={api_id}&region={region}"
 
 #Only gets called if we are removing the API completely
-@ext(handler=eh, op="delete_api")
+@ext(handler=eh)
 def delete_api():
-    api_id = eh.ops['delete_api']
+    api_id = eh.ops['delete_api']["api_id"]
+    api_type = eh.ops['delete_api']["api_type"]
 
-    try:
-        response = apiv2.delete_api(
-            ApiId=api_id
-        )
-        eh.add_log("Deleted API", response)
+    if api_type == "HTTP":
+        try:
+            response = apiv2.delete_api(
+                ApiId=api_id
+            )
+            eh.add_log("Deleted API", response)
 
-    except ClientError as e:
-        if e.response['Error']['Code'] == "NotFoundException":
-            eh.add_log("No API to delete", {"api_id": api_id})
-        elif 'Please remove all API mappings for the API from your custom domain names.' in str(e):
-            eh.add_log(f"Cannot delete API, mappings still present", {"api_id": api_id}, is_error=True)
-            eh.perm_error("API mappings still present for this API", 60)
-        else:
-            handle_common_errors(e, eh, "Delete API Failed", 60)
+        except ClientError as e:
+            if e.response['Error']['Code'] == "NotFoundException":
+                eh.add_log("No API to delete", {"api_id": api_id})
+            elif 'Please remove all API mappings for the API from your custom domain names.' in str(e):
+                eh.add_log(f"Cannot delete API, mappings still present", {"api_id": api_id}, is_error=True)
+                eh.perm_error("API mappings still present for this API", 60)
+            else:
+                handle_common_errors(e, eh, "Delete API Failed", 60)
+    else:
+        try:
+            response = apiv1.delete_rest_api(
+                restApiId=api_id
+            )
+            eh.add_log("Deleted API", response)
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NotFoundException":
+                eh.add_log("No API to delete", {"api_id": api_id})
+            else:
+                handle_common_errors(e, eh, "Delete API Failed", 60)
 
 
 @ext(handler=eh, op="add_lambda_permissions")
@@ -461,36 +633,49 @@ def add_lambda_permissions(account_number):
                 raise e
 
 @ext(handler=eh, op="create_stage")
-def create_stage(stage_variables, throttling_burst_limit, throttling_rate_limit):
-    stage_name = eh.ops['create_stage']
+def create_stage(api_type, stage_variables, throttling_burst_limit, throttling_rate_limit):
 
     print(f"props = {eh.props}")
     api_id = eh.props['api_id']
     log_group_arn = eh.props['log_group_arn']
+    if api_type == "HTTP":
+        stage_name = eh.ops['create_stage']
 
-    default_route_settings = None
-    if throttling_burst_limit or throttling_rate_limit:
-        default_route_settings = remove_none_attributes({
-            "ThrottlingBurstLimit": throttling_burst_limit,
-            "ThrottlingRateLimit": throttling_rate_limit
+        default_route_settings = None
+        if throttling_burst_limit or throttling_rate_limit:
+            default_route_settings = remove_none_attributes({
+                "ThrottlingBurstLimit": throttling_burst_limit,
+                "ThrottlingRateLimit": throttling_rate_limit
+            })
+
+        payload = remove_none_attributes({
+            "AccessLogSettings": {
+                "DestinationArn": log_group_arn,
+                "Format": json.dumps({ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" })
+            },
+            "ApiId": api_id,
+            "AutoDeploy": True,
+            "DefaultRouteSettings": default_route_settings,
+            "StageName": stage_name,
+            "StageVariables": stage_variables
         })
 
-    payload = remove_none_attributes({
-        "AccessLogSettings": {
-            "DestinationArn": log_group_arn,
-            "Format": json.dumps({ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" })
-        },
-        "ApiId": api_id,
-        "AutoDeploy": True,
-        "DefaultRouteSettings": default_route_settings,
-        "StageName": stage_name,
-        "StageVariables": stage_variables
-    })
+        response = apiv2.create_stage(**payload)
 
-    response = apiv2.create_stage(**payload)
+    else:
+        # Can create stage and deployment at the same time.
+        desired_config = eh.ops['create_stage']
+        desired_config["restApiId"] = api_id
+        desired_config["stageDescription"] = desired_config.pop("description")
 
-    eh.add_log("Stage Created", {"params": payload})
+        payload = remove_none_attributes(desired_config)
+
+        response = apiv1.create_deployment(**payload)
+
+    eh.add_log("Stage Created", {"params": payload, "response": response})
+
     endpoint_with_stage = f"{eh.props['api_endpoint']}/{stage_name}/"
+
     eh.add_props({
         "stage_name": stage_name,
         "endpoint_with_stage": endpoint_with_stage
@@ -502,35 +687,107 @@ def create_stage(stage_variables, throttling_burst_limit, throttling_rate_limit)
     eh.add_op("confirm_stage_deployment", stage_name)
 
 @ext(handler=eh, op="update_stage")
-def update_stage(stage_variables, throttling_burst_limit, throttling_rate_limit):
-    stage_name = eh.ops['update_stage']
+def update_stage(api_type, stage_name, stage_variables, throttling_burst_limit, throttling_rate_limit):
 
     print(f"props = {eh.props}")
     api_id = eh.props['api_id']
     log_group_arn = eh.props['log_group_arn']
+    if api_type == "HTTP":
+        # stage_name = eh.ops['update_stage']
 
-    default_route_settings = None
-    if throttling_burst_limit or throttling_rate_limit:
-        default_route_settings = remove_none_attributes({
-            "ThrottlingBurstLimit": throttling_burst_limit,
-            "ThrottlingRateLimit": throttling_rate_limit
+        default_route_settings = None
+        if throttling_burst_limit or throttling_rate_limit:
+            default_route_settings = remove_none_attributes({
+                "ThrottlingBurstLimit": throttling_burst_limit,
+                "ThrottlingRateLimit": throttling_rate_limit
+            })
+
+        payload = remove_none_attributes({
+            "AccessLogSettings": {
+                "DestinationArn": log_group_arn,
+                "Format": json.dumps({ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" })
+            },
+            "ApiId": api_id,
+            "AutoDeploy": True,
+            "DefaultRouteSettings": default_route_settings,
+            "StageName": stage_name,
+            "StageVariables": stage_variables
         })
 
-    payload = remove_none_attributes({
-        "AccessLogSettings": {
-            "DestinationArn": log_group_arn,
-            "Format": json.dumps({ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" })
-        },
-        "ApiId": api_id,
-        "AutoDeploy": True,
-        "DefaultRouteSettings": default_route_settings,
-        "StageName": stage_name,
-        "StageVariables": stage_variables
-    })
+        response = apiv2.update_stage(**payload)
+        eh.add_log("Stage Updated", {"params": payload})
+    
+    else:
+        update_config = eh.ops['update_stage']
+        try:
+            response = apiv1.create_deployment(
+                restApiId=api_id,
+                stageName=stage_name
+            )
+            deployment_id = response.get("id")
 
-    response = apiv2.update_stage(**payload)
+        except ClientError as e:
+            handle_common_errors(e, eh, "Update Stage Failed", 60, ["BadRequestException"])
+            return 0
 
-    eh.add_log("Stage Updated", {"params": payload})
+        try:
+            patch_operations = [{
+                "op": "replace",
+                "path": "/deploymentId",
+                "value": deployment_id
+            }]
+            for k,v in update_config.items():
+                if k == "log_group_arn":
+                    patch_operations.append({
+                        "op": "replace",
+                        "path": "/accessLogSettings/destinationArn",
+                        "value": log_group_arn
+                    })
+                elif k == "log_format":
+                    patch_operations.append({
+                        "op": "replace",
+                        "path": "/accessLogSettings/format",
+                        "value": v
+                    })
+                elif k == "cacheClusterEnabled":
+                    patch_operations.append({
+                        "op": "replace",
+                        "path": "/cacheClusterEnabled",
+                        "value": v
+                    })
+                elif k == "cacheClusterSize":
+                    patch_operations.append({
+                        "op": "replace",
+                        "path": "/cacheClusterSize",
+                        "value": v
+                    })
+                elif k == "description":
+                    patch_operations.append({
+                        "op": "replace",
+                        "path": "/description",
+                        "value": v
+                    })
+                elif k == "tracingEnabled":
+                    patch_operations.append({
+                        "op": "replace",
+                        "path": "/tracingEnabled",
+                        "value": v
+                    })
+
+            print(f"patch_operations = {patch_operations}")
+
+            response = apiv1.update_stage(
+                restApiId=api_id,
+                stageName=stage_name,
+                patchOperations=patch_operations
+            )
+        except ClientError as e:
+            handle_common_errors(e, eh, "Update Stage Failed", 60, ["BadRequestException"])
+            return 0
+
+
+    eh.add_log("Stage Updated", {"params": payload, "response": response})
+
     endpoint_with_stage = f"{eh.props['api_endpoint']}/{stage_name}/"
     eh.add_props({
         "stage_name": stage_name,
@@ -543,17 +800,25 @@ def update_stage(stage_variables, throttling_burst_limit, throttling_rate_limit)
     eh.add_op("confirm_stage_deployment", stage_name)
 
 @ext(handler=eh, op="delete_stage")
-def delete_stage():
+def delete_stage(api_type):
     stage_names = eh.ops['delete_stage']
     api_id = eh.props['api_id']
 
     for stage_name in stage_names:
-        try:
-            response = apiv2.delete_stage(ApiId=api_id, StageName=stage_name)
-            eh.add_log(f"Deleted Stage {stage_name}", {"stage_name": stage_name})
-        except Exception as e:
-            eh.add_log(f"Unable to Delete Stage {stage_name}", {"error": e}, is_error=True)
-            print(e)
+        if api_type == "HTTP":
+            try:
+                response = apiv2.delete_stage(ApiId=api_id, StageName=stage_name)
+                eh.add_log(f"Deleted Stage {stage_name}", {"stage_name": stage_name})
+            except Exception as e:
+                eh.add_log(f"Unable to Delete Stage {stage_name}", {"error": e}, is_error=True)
+                print(e)
+        else:
+            try:
+                response = apiv1.delete_stage(restApiId=api_id, stageName=stage_name)
+                eh.add_log(f"Deleted Stage {stage_name}", {"stage_name": stage_name})
+            except Exception as e:
+                eh.add_log(f"Unable to Delete Stage {stage_name}", {"error": e}, is_error=True)
+                print(e)
 
 
 @ext(handler=eh, op="confirm_stage_deployment")
@@ -921,3 +1186,29 @@ def fix_domains(domains):
             else:
                 retval[domain_key] = domain
     return retval
+
+def generate_private_resource_policy(vpc_endpoint_ids):
+    if not vpc_endpoint_ids:
+        return None
+    return json.dumps({
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Action": "execute-api:Invoke",
+                "Effect": "Deny",
+                "Principal": "*",
+                "Resource": "execute-api:/*",
+                "Condition": {
+                    "StringNotEquals": {
+                        "aws:sourceVpce": vpc_endpoint_ids
+                    }
+                }
+            },
+            {
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": "execute-api:Invoke",
+                "Resource": "execute-api:/*"
+            }
+        ]
+    })

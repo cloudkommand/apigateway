@@ -21,7 +21,8 @@
                         "apigateway:POST",
                         "apigateway:PATCH",
                         "apigateway:DELETE",
-                        "apigateway:GET"
+                        "apigateway:GET",
+                        "apigateway:UpdateRestApiPolicy"
                     ],
                     "Resource": "*"
                 }]
