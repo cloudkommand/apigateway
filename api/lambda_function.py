@@ -357,7 +357,7 @@ def get_current_state(log_group_name, api_id, old_log_group_name, stage_name, re
       
     else:
         eh.add_op("create_api")
-        eh.add_op("create_stage", stage_name)
+        eh.add_op("create_stage", stage_name if api_type == "HTTP" else desired_rest_stage_config)
         if tags:
             eh.add_op("add_tags", tags) 
 
