@@ -432,6 +432,8 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
     
     else:
         try:
+            definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
+
             create_rest_api_params = remove_none_attributes({
                 "name": name,
                 "endpointConfiguration": remove_none_attributes({
