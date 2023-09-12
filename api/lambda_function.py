@@ -485,6 +485,7 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
 def update_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_id, prev_state, api_type):
     definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
     print(f"definition = {definition}")
+    api_id = eh.props['api_id']
 
     if api_type == "HTTP":
         try:
