@@ -781,11 +781,14 @@ def update_stage(api_type, stage_name, stage_variables, throttling_burst_limit, 
 
             print(f"patch_operations = {patch_operations}")
 
-            response = apiv1.update_stage(
-                restApiId=api_id,
-                stageName=stage_name,
-                patchOperations=patch_operations
-            )
+            payload = {
+                "restApiId": api_id,
+                "stageName": stage_name,
+                "patchOperations": patch_operations
+            }
+
+            response = apiv1.update_stage(**payload)
+
         except ClientError as e:
             handle_common_errors(e, eh, "Update Stage Failed", 60, ["BadRequestException"])
             return 0
