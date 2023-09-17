@@ -669,7 +669,7 @@ def create_stage(api_type, stage_variables, throttling_burst_limit, throttling_r
         # Can create stage and deployment at the same time.
         desired_config = eh.ops['create_stage']
         desired_config["restApiId"] = api_id
-        desired_config["stageDescription"] = desired_config.pop("description")
+        desired_config["stageDescription"] = desired_config.pop("description", None)
 
         payload = remove_none_attributes(desired_config)
 
