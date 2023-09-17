@@ -688,7 +688,8 @@ def create_stage(api_type, stage_variables, throttling_burst_limit, throttling_r
         "API Base URL": endpoint_with_stage
     })
 
-    eh.add_op("confirm_stage_deployment", stage_name)
+    if api_type == "HTTP":
+        eh.add_op("confirm_stage_deployment", stage_name)
 
 @ext(handler=eh, op="update_stage")
 def update_stage(api_type, stage_name, stage_variables, throttling_burst_limit, throttling_rate_limit):
