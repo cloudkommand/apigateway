@@ -83,6 +83,7 @@ def get_api_mapping(api_id, domain_name, stage_name, op):
     try:
         if eh.state.get("version") == 2:
             response = apiv2.get_api_mappings(DomainName=domain_name)
+            eh.add_log("Got Domain API Mappings", response)
             this_api_mappings = list(filter(lambda x: x["ApiId"] == api_id, response['Items']))
             this_stage_mappings = list(filter(lambda x: x["Stage"] == stage_name, this_api_mappings))
 
@@ -114,7 +115,8 @@ def get_api_mapping(api_id, domain_name, stage_name, op):
 
         else:
             response = apiv1.get_base_path_mappings(domainName=domain_name)
-            this_stage_mappings = list(filter(lambda x: x["stage"] == stage_name, response['items']))
+            eh.add_log("Got Domain API Mappings", response)
+            this_stage_mappings = list(filter(lambda x: x["stage"] == stage_name, response.get('items', [])))
             if op == "delete":
                 if this_stage_mappings:
                     eh.add_op("remove_api_mappings", list(map(lambda x: x['basePath'], this_stage_mappings)))
