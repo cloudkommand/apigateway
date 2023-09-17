@@ -64,7 +64,7 @@ def get_api(api_id):
         eh.add_state({"version": 2})
         print("V2 API")
     except ClientError as e:
-        if "Invalid API mapping_identifier specified" in str(e):
+        if "Invalid API identifier specified" in str(e):
             # This is not an HTTP API, try the V1 API
             try:
                 response = apiv1.get_rest_api(
