@@ -674,6 +674,7 @@ def create_stage(api_type, stage_variables, throttling_burst_limit, throttling_r
         payload = remove_none_attributes(desired_config)
 
         response = apiv1.create_deployment(**payload)
+        stage_name = payload["stageName"]
 
     eh.add_log("Stage Created", {"params": payload, "response": response})
 
