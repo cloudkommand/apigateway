@@ -805,7 +805,8 @@ def update_stage(api_type, stage_name, stage_variables, throttling_burst_limit, 
         "API Base URL": endpoint_with_stage
     })
 
-    eh.add_op("confirm_stage_deployment", stage_name)
+    if api_type == "HTTP":
+        eh.add_op("confirm_stage_deployment", stage_name)
 
 @ext(handler=eh, op="delete_stage")
 def delete_stage(api_type):
