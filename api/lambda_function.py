@@ -262,7 +262,7 @@ def get_current_state(log_group_name, api_id, old_log_group_name, stage_name, re
                     ApiId=api_id
                 )
                 eh.add_log("Got API", response)
-                eh.add_op("update_api")
+                eh.add_op("update_api", api_id)
                 current_tags = response.get("Tags") or {}
                 if tags != current_tags:
                     remove_tags = [k for k in current_tags.keys() if k not in tags]
@@ -307,7 +307,7 @@ def get_current_state(log_group_name, api_id, old_log_group_name, stage_name, re
                     restApiId=api_id
                 )
                 eh.add_log("Got API", response)
-                eh.add_op("update_api")
+                eh.add_op("update_api", api_id)
                 current_tags = response.get("tags") or {}
                 if tags != current_tags:
                     remove_tags = [k for k in current_tags.keys() if k not in tags]
@@ -449,7 +449,7 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
             name = response.get("name")
             api_endpoint = f"https://{api_id}.execute-api.{region}.amazonaws.com"
 
-            eh.add_op("update_api")
+            eh.add_op("update_api", api_id)
             
         except botocore.exceptions.ClientError as ex:
             if ex.response['Error']['Code'] == "BadRequestException":
@@ -485,7 +485,7 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
 def update_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_id, prev_state, api_type):
     definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
     print(f"definition = {definition}")
-    api_id = eh.props['api_id']
+    api_id = eh.ops['update_api']
 
     if api_type == "HTTP":
         try:
