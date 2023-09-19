@@ -483,7 +483,7 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
 
 
 @ext(handler=eh)
-def update_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_id, prev_state, api_type):
+def update_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_id, prev_state, api_type, resource_policy):
     definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
     print(f"definition = {definition}")
     api_id = eh.ops['update_api']
@@ -494,7 +494,6 @@ def update_api(name, resources, cors_configuration, authorizers, account_number,
                 ApiId=api_id,
                 Body = json.dumps(definition)
             )
-            eh.add_log("Reimported API", response)
             api_id = response.get("ApiId")
             api_endpoint = response.get("ApiEndpoint")
             name = response.get("Name")
@@ -504,11 +503,16 @@ def update_api(name, resources, cors_configuration, authorizers, account_number,
     
     else:
         try:
-            response = apiv1.put_rest_api(
-                restApiId=api_id,
-                mode="overwrite",
-                body = json.dumps(definition)
-            )
+            params = remove_none_attributes({
+                "restApiId": api_id,
+                "mode": "overwrite",
+                "body": json.dumps(definition),
+                "parameters": remove_none_attributes({
+                    "policy": resource_policy
+                }) or None
+            })
+
+            response = apiv1.put_rest_api(**params)
 
             api_id = response.get("id")
             name = response.get("name")
@@ -517,6 +521,8 @@ def update_api(name, resources, cors_configuration, authorizers, account_number,
         except ClientError as e:
             handle_common_errors(e, eh, "Updating API Routes Failed", 15, ["BadRequestException"])
             return 0
+
+    eh.add_log("Imported or Reimported API", response)
 
     # eh.add_op("update_stage")
     eh.add_props({
