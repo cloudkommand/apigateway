@@ -147,7 +147,7 @@ def lambda_handler(event, context):
         get_current_state(log_group_name, api_id, old_log_group_name, stage_name, region, tags, api_type, previous_api_type, desired_rest_stage_config, vpc_endpoint_ids, resource_policy)
         create_cloudwatch_log_group(region, account_number)
         create_api(api_name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_type, vpc_endpoint_ids, resource_policy)
-        update_api(api_name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_id, prev_state, api_type)
+        update_api(api_name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_id, prev_state, api_type, resource_policy)
         add_lambda_permissions(account_number)
         create_stage(api_type, stage_variables, throttling_burst_limit, throttling_rate_limit)
         update_stage(api_type, stage_name, stage_variables, throttling_burst_limit, throttling_rate_limit)
