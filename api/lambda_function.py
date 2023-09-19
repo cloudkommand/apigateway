@@ -1221,4 +1221,4 @@ def generate_private_resource_policy(vpc_endpoint_ids):
                 "Resource": "execute-api:/*"
             }
         ]
-    })
+    }, separators=(',', ':'))
