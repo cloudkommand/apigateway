@@ -56,6 +56,7 @@ def lambda_handler(event, context):
         previous_api_type = previous_render_def.get("api_type", "HTTP") if previous_render_def else None
         vpc_endpoint_ids = cdef.get("vpc_endpoint_ids", []) if api_type == "PRIVATE" else None
         resource_policy = cdef.get("resource_policy") or generate_private_resource_policy(vpc_endpoint_ids)
+        print(f"Desired resource_policy = {resource_policy}")
 
         # Cloudfront stuff only
         cloudfront_distribution_override_def = cdef.get(CLOUDFRONT_DISTRIBUTION_KEY) or {} #For cloudfront distribution overrides
@@ -442,7 +443,7 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
                 }),
                 "policy": resource_policy
             })
-
+            print(f"create_rest_api_params = {create_rest_api_params}")
             response = apiv1.create_rest_api(**create_rest_api_params)
 
             api_id = response.get("id")
