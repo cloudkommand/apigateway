@@ -1199,7 +1199,7 @@ def fix_domains(domains):
 def generate_private_resource_policy(vpc_endpoint_ids):
     if not vpc_endpoint_ids:
         return None
-    return json.dumps({
+    return {
         "Version": "2012-10-17",
         "Statement": [
             {
@@ -1220,4 +1220,56 @@ def generate_private_resource_policy(vpc_endpoint_ids):
                 "Resource": "execute-api:/*"
             }
         ]
-    }, separators=(',', ':'))
+    }
+
+# "x-amazon-apigateway-policy": {
+#     "Version": "2012-10-17",
+#     "Statement": [
+#         {
+#             "Effect": "Allow",
+#             "Principal": "*",
+#             "Action": "execute-api:Invoke",
+#             "Resource": [
+#                 "execute-api:/*"
+#             ]
+#         },
+#         {
+#             "Effect": "Deny",
+#             "Principal": "*",
+#             "Action": "execute-api:Invoke",
+#             "Resource": [
+#                "execute-api:/*"
+#             ],
+#             "Condition" : {
+#                 "IpAddress": {
+#                     "aws:SourceIp": "192.0.2.0/24"
+#                 }
+#             }
+#         }
+#     ]
+# }
+
+# {
+#     "Version": "2012-10-17",
+#     "Statement": [
+#         {
+#             "Action": "execute-api:Invoke",
+#             "Effect": "Deny",
+#             "Principal": "*",
+#             "Resource": "execute-api:/*",
+#             "Condition": {
+#                 "StringNotEquals": {
+#                     "aws:sourceVpce": [
+#                         "vpce-04f67d7040d92a1a4"
+#                     ]
+#                 }
+#             }
+#         },
+#         {
+#             "Effect": "Allow",
+#             "Principal": "*",
+#             "Action": "execute-api:Invoke",
+#             "Resource": "execute-api:/*"
+#         }
+#     ]
+# }
