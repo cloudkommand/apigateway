@@ -438,8 +438,7 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
                 "endpointConfiguration": remove_none_attributes({
                     "types": [api_type],
                     "vpcEndpointIds": vpc_endpoint_ids or None
-                }),
-                "policy": resource_policy
+                })
             })
             print(f"create_rest_api_params = {create_rest_api_params}")
             response = apiv1.create_rest_api(**create_rest_api_params)
