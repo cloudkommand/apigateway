@@ -502,9 +502,7 @@ def update_api(name, resources, cors_configuration, authorizers, account_number,
             response = apiv1.put_rest_api(
                 restApiId=api_id,
                 mode="overwrite",
-                parameters=remove_none_attributes({
-                    "body": json.dumps(definition)
-                }) or None
+                body=json.dumps(definition)
             )
 
             api_id = response.get("id")
