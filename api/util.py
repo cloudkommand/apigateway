@@ -3,7 +3,7 @@ import json
 import datetime
 import boto3
 
-def generate_openapi_definition(name, full_resources, cors_configuration, authorizers, account_number, payload_version="2.0", region="us-east-1"):
+def generate_openapi_definition(name, full_resources, cors_configuration, authorizers, account_number, payload_version="2.0", region="us-east-1", resource_policy=None):
     """
     Args:
         name (string): Name of API
@@ -184,7 +184,8 @@ def generate_openapi_definition(name, full_resources, cors_configuration, author
         },
         "paths": paths,
         "x-amazon-apigateway-cors": cors_configuration,
-        "components": authorizers_formatted
+        "components": authorizers_formatted,
+        "x-amazon-apigateway-policy": resource_policy
     })
     print(definition)
     print(lambda_permissions)

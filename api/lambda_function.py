@@ -308,7 +308,7 @@ def get_current_state(log_group_name, api_id, old_log_group_name, stage_name, re
                     restApiId=api_id
                 )
                 eh.add_log("Got API", response)
-                eh.add_op("update_api", api_id)
+                eh.add_op("update_api", api_id) #Takes care of resource policy
                 current_tags = response.get("tags") or {}
                 if tags != current_tags:
                     remove_tags = [k for k in current_tags.keys() if k not in tags]
@@ -326,11 +326,11 @@ def get_current_state(log_group_name, api_id, old_log_group_name, stage_name, re
                 elif api_type == "PRIVATE":
                     # Need to check VPC Endpoint IDs
                     current_vpc_endpoint_ids = response.get("endpointConfiguration", {}).get("vpcEndpointIds", [])
-                    eh.add_op("update_rest_api_params", {
-                        "add_vpc_endpoint_ids": list(set(vpc_endpoint_ids) - set(current_vpc_endpoint_ids)),
-                        "remove_vpc_endpoint_ids": list(set(current_vpc_endpoint_ids) - set(vpc_endpoint_ids)),
-                        "policy": resource_policy
-                    })
+                    if set(current_vpc_endpoint_ids) != set(vpc_endpoint_ids):
+                        eh.add_op("update_rest_api_params", {
+                            "add_vpc_endpoint_ids": list(set(vpc_endpoint_ids) - set(current_vpc_endpoint_ids)),
+                            "remove_vpc_endpoint_ids": list(set(current_vpc_endpoint_ids) - set(vpc_endpoint_ids))
+                        })
 
                 try:
                     response = apiv1.get_stages(restApiId=api_id)
@@ -403,13 +403,15 @@ def remove_cloudwatch_log_group():
 
 @ext(handler=eh, op="create_api")
 def create_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_type, vpc_endpoint_ids, resource_policy):
+    try:
+        definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1", resource_policy=resource_policy)
+    except Exception as ex:
+        eh.add_log("Invalid API Definition", {"error": str(ex)}, is_error=True)
+        eh.declare_return(200, 15, error_code=str(ex))
+        return 0
+    
     if api_type == "HTTP":
-        try:
-            definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
-        except Exception as ex:
-            eh.add_log("Invalid API Definition", {"error": str(ex)}, is_error=True)
-            eh.declare_return(200, 15, error_code=str(ex))
-            return 0
+        
         print(f"definition = {definition}")
         print(type(definition))
 
@@ -426,15 +428,11 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
                 eh.perm_error(str(ex), 15)
                 return 0
             else:
-                print(str(ex))
-                eh.add_log("Failed to Create API", {"error", str(ex)}, is_error=True)
-                eh.retry_error(str(ex), 15)
+                handle_common_errors(ex, eh, "Failed to Create API", 15)
                 return 0
     
     else:
         try:
-            definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
-
             create_rest_api_params = remove_none_attributes({
                 "name": name,
                 "endpointConfiguration": remove_none_attributes({
@@ -458,9 +456,7 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
                 eh.perm_error(str(ex), 15)
                 return 0
             else:
-                print(str(ex))
-                eh.add_log("Failed to Create API", {"error", str(ex)}, is_error=True)
-                eh.retry_error(str(ex), 15)
+                handle_common_errors(ex, eh, "Failed to Create API", 15)
                 return 0
     
     eh.add_log("Created API", response)
@@ -503,16 +499,13 @@ def update_api(name, resources, cors_configuration, authorizers, account_number,
     
     else:
         try:
-            params = remove_none_attributes({
-                "restApiId": api_id,
-                "mode": "overwrite",
-                "body": json.dumps(definition),
-                "parameters": remove_none_attributes({
-                    "policy": resource_policy
+            response = apiv1.put_rest_api(
+                restApiId=api_id,
+                mode="overwrite",
+                parameters=remove_none_attributes({
+                    "body": json.dumps(definition)
                 }) or None
-            })
-
-            response = apiv1.put_rest_api(**params)
+            )
 
             api_id = response.get("id")
             name = response.get("name")
@@ -521,7 +514,9 @@ def update_api(name, resources, cors_configuration, authorizers, account_number,
         except ClientError as e:
             handle_common_errors(e, eh, "Updating API Routes Failed", 15, ["BadRequestException"])
             return 0
-
+                # "parameters": remove_none_attributes({
+                #     "policy": resource_policy
+                # }) or None
     eh.add_log("Imported or Reimported API", response)
 
     # eh.add_op("update_stage")
