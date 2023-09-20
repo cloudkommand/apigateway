@@ -450,13 +450,8 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
             eh.add_op("update_api", api_id)
             
         except botocore.exceptions.ClientError as ex:
-            if ex.response['Error']['Code'] == "BadRequestException":
-                eh.add_log("Invalid API Specification", {"error": str(ex)})
-                eh.perm_error(str(ex), 15)
-                return 0
-            else:
-                handle_common_errors(ex, eh, "Failed to Create API", 15)
-                return 0
+            handle_common_errors(ex, eh, "Failed to Create API", 15, ["BadRequestException", "InvalidParameterException"])
+            return 0
     
     eh.add_log("Created API", response)
 
