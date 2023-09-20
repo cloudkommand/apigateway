@@ -228,6 +228,24 @@
                         "type": "string",
                         "common": true,
                         "description": "Pass a base domain to get a unique domain through a generated subdomain. Set this value if you want multiple developers working on the same API to get unique domains per CloudKommand project."
+                    },
+                    "api_type": {
+                        "type": "string",
+                        "common": true,
+                        "enum": ["HTTP", "REGIONAL", "EDGE", "PRIVATE"],
+                        "default": "HTTP",
+                        "description": "The type of API Gateway to deploy. HTTP is the simplest and cheapest but least configuraable. REGIONAL is a more configurable and more expensive version of HTTP. PRIVATE keeps the API isolated and only accessible from VPCs or VPC Endpoints. EDGE should rarely be used."
+                    },
+                    "vpc_endpoint_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Only used for PRIVATE APIs. A list of VPC Endpoint IDs to give access to this API. If not specified, resource_policy must also be set."
+                    },
+                    "resource_policy": {
+                        "type": "object",
+                        "description": "Defaults to all access for HTTP, REGIONAL, and EDGE, and default restricts access for PRIVATE to the VPC Endpoint IDs passed in the 'vpc_endpoint_ids' parameter. See https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-resource-policies-examples.html for examples."
                     }
                 },
                 "required": [

@@ -56,7 +56,7 @@ def lambda_handler(event, context):
         previous_api_type = previous_render_def.get("api_type", "HTTP") if previous_render_def else None
         vpc_endpoint_ids = cdef.get("vpc_endpoint_ids", []) if api_type == "PRIVATE" else None
         resource_policy = cdef.get("resource_policy") or generate_private_resource_policy(vpc_endpoint_ids)
-        print(f"Desired resource_policy = {resource_policy}")
+        # print(f"Desired resource_policy = {resource_policy}")
 
         # Cloudfront stuff only
         cloudfront_distribution_override_def = cdef.get(CLOUDFRONT_DISTRIBUTION_KEY) or {} #For cloudfront distribution overrides
@@ -148,6 +148,7 @@ def lambda_handler(event, context):
         create_cloudwatch_log_group(region, account_number)
         create_api(api_name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_type, vpc_endpoint_ids, resource_policy)
         update_api(api_name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_id, prev_state, api_type, resource_policy)
+        update_rest_api_params()
         add_lambda_permissions(account_number)
         create_stage(api_type, stage_variables, throttling_burst_limit, throttling_rate_limit)
         update_stage(api_type, stage_name, stage_variables, throttling_burst_limit, throttling_rate_limit)
