@@ -465,7 +465,7 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
     })
 
     eh.add_links({
-        "API in AWS": gen_api_link(api_id, region),
+        "API in AWS": gen_api_link(api_id, region, api_type),
         "API Endpoint": api_endpoint
     })
 
@@ -522,7 +522,7 @@ def update_api(name, resources, cors_configuration, authorizers, account_number,
     })
 
     eh.add_links({
-        "API in AWS": gen_api_link(api_id, region),
+        "API in AWS": gen_api_link(api_id, region, api_type),
         "API Endpoint": api_endpoint
     })
 
@@ -571,8 +571,11 @@ def update_rest_api_params():
 
     
 
-def gen_api_link(api_id, region):
-    return f"https://console.aws.amazon.com/apigateway/main/api-detail?api={api_id}&region={region}"
+def gen_api_link(api_id, region, api_type):
+    if api_type == "HTTP":
+        return f"https://console.aws.amazon.com/apigateway/main/api-detail?api={api_id}&region={region}"
+    else:
+        return f"https://console.aws.amazon.com/apigateway/main/apis/{api_id}/resources?api={api_id}&region={region}"
 
 #Only gets called if we are removing the API completely
 @ext(handler=eh)
