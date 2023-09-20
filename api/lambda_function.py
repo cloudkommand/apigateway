@@ -480,7 +480,7 @@ def create_api(name, resources, cors_configuration, authorizers, account_number,
 
 @ext(handler=eh)
 def update_api(name, resources, cors_configuration, authorizers, account_number, lambda_payload_version, region, api_id, prev_state, api_type, resource_policy):
-    definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1")
+    definition, lambdas = generate_openapi_definition(name, resources, cors_configuration, authorizers, account_number, payload_version=lambda_payload_version, region="us-east-1", resource_policy=resource_policy)
     print(f"definition = {definition}")
     api_id = eh.ops['update_api']
 
