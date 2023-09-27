@@ -682,9 +682,17 @@ def create_stage(api_type, stage_variables, throttling_burst_limit, throttling_r
         desired_config["stageDescription"] = desired_config.pop("description", None)
 
         payload = remove_none_attributes(desired_config)
-
-        response = apiv1.create_deployment(**payload)
-        stage_name = payload["stageName"]
+        try:
+            response = apiv1.create_deployment(**payload)
+            stage_name = payload["stageName"]
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "BadRequestException" and ("Private REST API doesn't have a resource policy attached to it") in str(e):
+                eh.add_log("Private API Missing Resource Policy", {"error": str(e)}, is_error=True)
+                eh.perm_error("Private API Missing Resource Policy, either specify resource_policy or vpc_endpoint_ids to auto-generate a resource policy", 60)
+                return 0
+            else:
+                handle_common_errors(e, eh, "Create Stage Failed", 60, ["BadRequestException"])
+                return 0
 
     eh.add_log("Stage Created", {"params": payload, "response": response})
 
