@@ -104,12 +104,22 @@ def lambda_handler(event, context):
                 eh.add_op("setup_custom_domain", {"upsert": domains, "delete": old_domains})
                 upsert_domains = {k:v for k,v in domains.items() if isinstance(v, str) or (not v.get("external_domain"))}
                 print(f"upsert_domains: {upsert_domains}")
-                if upsert_domains or old_domains:
-                    eh.add_op("setup_route53", {"upsert": upsert_domains, "delete": copy.deepcopy(old_domains)})
-            
-                if cloudfront:
-                    eh.add_op("setup_cloudfront_distribution", {"op": "upsert"})
-                elif prev_state.get("props", {}).get(CLOUDFRONT_DISTRIBUTION_KEY):
+                cloudfront_delete = False
+                if api_type != "PRIVATE":
+                    if upsert_domains or old_domains:
+                        eh.add_op("setup_route53", {"upsert": upsert_domains, "delete": copy.deepcopy(old_domains)})
+                
+                    if cloudfront:
+                        eh.add_op("setup_cloudfront_distribution", {"op": "upsert"})
+                    elif prev_state.get("props", {}).get(CLOUDFRONT_DISTRIBUTION_KEY):
+                        cloudfront_delete = True
+                        
+                elif r53_keys:
+                    eh.add_op("setup_route53", {"delete": {**old_domains, **domains}})
+                    if prev_state.get("props", {}).get(CLOUDFRONT_DISTRIBUTION_KEY):
+                        cloudfront_delete = True
+
+                if cloudfront_delete:
                     # All this pain to get what the old domains were exactly.
                     prev_state_cdef = prev_state["rendef"]
                     prev_state_domain_name = prev_state_cdef.get("domain_name") or prev_state_cdef.get("domain") or \
@@ -124,6 +134,8 @@ def lambda_handler(event, context):
                     eh.add_op("setup_cloudfront_distribution", {
                         "op": "delete", "aliases": list(map(lambda x: x["domain"], prev_state_domains.values()))
                     })
+
+
 
         elif event.get("op") == "delete":
             eh.add_op("delete_api", {"api_id": api_id, "api_type": api_type})
