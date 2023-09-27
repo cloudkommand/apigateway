@@ -58,7 +58,7 @@ def lambda_handler(event, context):
         if eh.props.get("certificate_arn"):
             desired_config = remove_none_attributes({
                 "CertificateArn": eh.props['certificate_arn'],
-                "EndpointType": "REGIONAL",
+                "EndpointType": cdef.get("endpoint_type") or "REGIONAL",
                 "SecurityPolicy": "TLS_1_2"
             })
 
