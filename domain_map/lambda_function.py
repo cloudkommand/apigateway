@@ -27,6 +27,7 @@ def lambda_handler(event, context):
         api_id = cdef.get("api_id")
         stage_name = cdef.get("stage_name")
         domain_name = cdef.get("domain_name")
+        base_path = cdef.get("base_path")
 
         if eh.state.get("version") == 2:
             print("V2 API")
@@ -43,8 +44,8 @@ def lambda_handler(event, context):
             eh.add_op("remove_api_mappings", [prev_state.get("props", {}).get("mapping_identifier")])
 
         get_api(api_id)
-        get_api_mapping(api_id, domain_name, stage_name, op)
-        create_api_mapping(api_id, domain_name, stage_name)
+        get_api_mapping(api_id, domain_name, stage_name, op, base_path)
+        create_api_mapping(api_id, domain_name, stage_name, base_path)
         remove_api_mappings(domain_name)
         update_api_mapping(api_id, domain_name, stage_name)
 
@@ -79,9 +80,11 @@ def get_api(api_id):
             handle_common_errors(e, eh, "Get API Failed", 2)
 
 @ext(handler=eh)
-def get_api_mapping(api_id, domain_name, stage_name, op):
+def get_api_mapping(api_id, domain_name, stage_name, op, base_path):
     try:
         if eh.state.get("version") == 2:
+            if base_path:
+                eh.add_log("Warning: base_path Not Supported for HTTP APIs", {"base_path": base_path}, True)
             response = apiv2.get_api_mappings(DomainName=domain_name)
             eh.add_log("Got Domain API Mappings", response)
             this_api_mappings = list(filter(lambda x: x["ApiId"] == api_id, response['Items']))
@@ -116,7 +119,7 @@ def get_api_mapping(api_id, domain_name, stage_name, op):
         else:
             response = apiv1.get_base_path_mappings(domainName=domain_name)
             eh.add_log("Got Domain API Mappings", response)
-            this_stage_mappings = list(filter(lambda x: x["stage"] == stage_name, response.get('items', [])))
+            this_stage_mappings = list(filter(lambda x: ((x["stage"] == stage_name) and (x['restApiId'] == api_id)), response.get('items', [])))
             if op == "delete":
                 if this_stage_mappings:
                     eh.add_op("remove_api_mappings", list(map(lambda x: x['basePath'], this_stage_mappings)))
@@ -125,10 +128,14 @@ def get_api_mapping(api_id, domain_name, stage_name, op):
 
             else:
                 if this_stage_mappings:
-                    eh.add_log("API Mapping Already Exists, Exiting", {"api_id": api_id, "domain_name": domain_name, "stage_name": stage_name})
-                    eh.add_props({"mapping_identifier": this_stage_mappings[0].get("ApiMappingId")})
+                    print(f"This stage mappings: {this_stage_mappings}")
+                    if base_path != this_stage_mappings[0].get("basePath"):
+                        eh.add_op("remove_api_mappings", list(map(lambda x: x['basePath'], this_stage_mappings)))
+                        eh.add_op("create_api_mapping")
+                    else:
+                        eh.add_log("API Mapping Already Exists, Exiting", {"api_id": api_id, "domain_name": domain_name, "stage_name": stage_name})
+                        eh.add_props({"mapping_identifier": this_stage_mappings[0].get("basePath")})
                 else:
-                    # In this version it just overwrites the existing mapping, which is a bit YIKES.
                     eh.add_op("create_api_mapping")
 
     
@@ -141,7 +148,7 @@ def get_api_mapping(api_id, domain_name, stage_name, op):
     
 
 @ext(handler=eh)
-def create_api_mapping(api_id, domain_name, stage_name):
+def create_api_mapping(api_id, domain_name, stage_name, base_path):
     if eh.state.get("version") == 2:
         try:
             response = apiv2.create_api_mapping(
@@ -163,6 +170,7 @@ def create_api_mapping(api_id, domain_name, stage_name):
             response = apiv1.create_base_path_mapping(
                 domainName=domain_name,
                 restApiId=api_id,
+                basePath=base_path,
                 stage=stage_name
             )
             eh.add_log("Created API Mapping", response)
@@ -170,7 +178,7 @@ def create_api_mapping(api_id, domain_name, stage_name):
         except ClientError as e:
             if "already exists" in str(e):
                 eh.add_log("Conflict, cannot Create API Mapping", {"api_id": api_id, "domain_name": domain_name, "stage_name": stage_name})
-                eh.perm_error("API Mapping Already Exists for this Domain", 20)
+                eh.perm_error("API Mapping Already Exists for this Domain, Stage, and base_path", 20)
             elif e.response['Error']['Code'] == "BadRequestException":
                 if "Invalid stage identifier specified" in str(e):
                     eh.add_log("Invalid Stage", {"api_id": api_id, "domain_name": domain_name, "stage_name": stage_name}, is_error=True)
