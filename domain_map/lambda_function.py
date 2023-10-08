@@ -130,7 +130,8 @@ def get_api_mapping(api_id, domain_name, stage_name, op, base_path):
             else:
                 if this_stage_mappings:
                     print(f"This stage mappings: {this_stage_mappings}")
-                    if (base_path != this_stage_mappings[0].get("basePath")) and base_path and (not this_stage_mappings[0].get("basePath") == "(none)"):
+                    test_base_path = base_path or "(none)"
+                    if test_base_path != this_stage_mappings[0].get("basePath"):
                         eh.add_op("remove_api_mappings", list(map(lambda x: x['basePath'], this_stage_mappings)))
                         eh.add_op("create_api_mapping")
                     else:
