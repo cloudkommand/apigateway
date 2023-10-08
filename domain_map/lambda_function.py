@@ -120,6 +120,7 @@ def get_api_mapping(api_id, domain_name, stage_name, op, base_path):
             response = apiv1.get_base_path_mappings(domainName=domain_name)
             eh.add_log("Got Domain API Mappings", response)
             this_stage_mappings = list(filter(lambda x: ((x["stage"] == stage_name) and (x['restApiId'] == api_id)), response.get('items', [])))
+            print(f"this_stage_mappings = {this_stage_mappings}")
             if op == "delete":
                 if this_stage_mappings:
                     eh.add_op("remove_api_mappings", list(map(lambda x: x['basePath'], this_stage_mappings)))
@@ -167,12 +168,13 @@ def create_api_mapping(api_id, domain_name, stage_name, base_path):
                 handle_common_errors(e, eh, "Create API Mapping Failed", 20)
     else:
         try:
-            response = apiv1.create_base_path_mapping(
-                domainName=domain_name,
-                restApiId=api_id,
-                basePath=base_path,
-                stage=stage_name
-            )
+            parameters = remove_none_attributes({
+                "basePath": base_path,
+                "restApiId": api_id,
+                "stage": stage_name
+            })
+
+            response = apiv1.create_base_path_mapping(domainName=domain_name, **parameters)
             eh.add_log("Created API Mapping", response)
 
         except ClientError as e:
