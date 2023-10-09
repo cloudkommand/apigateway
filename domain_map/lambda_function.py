@@ -177,6 +177,7 @@ def create_api_mapping(api_id, domain_name, stage_name, base_path):
 
             response = apiv1.create_base_path_mapping(domainName=domain_name, **parameters)
             eh.add_log("Created API Mapping", response)
+            eh.add_props({"mapping_identifier": response.get("basePath")})
 
         except ClientError as e:
             if "already exists" in str(e):
