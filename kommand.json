@@ -537,12 +537,23 @@
             },
             "examples": [
                 {
-                    "displayname": "Only One Type of Mapping",
+                    "displayname": "Only One Type of Mapping for HTTP APIs",
                     "definition": {
                         "type": "&apigw.domain_map",
                         "api_id": "o7zfr1sm8l",
                         "stage_name": "live",
                         "domain_name": "api.example.com"
+                    }
+                },
+                {
+                    "diplayname": "For non-HTTP APIs, can set Base Path",
+                    "notes": "This sets the domain mapping to only route paths that start with 'v1' to the API",
+                    "definition": {
+                        "type": "&apigw.domain_map",
+                        "api_id": "o7zfr1sm8l",
+                        "stage_name": "live",
+                        "domain_name": "api.example.com",
+                        "base_path": "v1"
                     }
                 }
             ]
