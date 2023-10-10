@@ -151,7 +151,7 @@ def get_api_mapping(api_id, domain_name, stage_name, op, base_path):
 
 @ext(handler=eh)
 def create_api_mapping(api_id, domain_name, stage_name, base_path):
-    if eh.state.get("version") == 2:
+    if eh.state.get("version") == 2 or "/" in base_path:
         try:
             response = apiv2.create_api_mapping(
                 ApiId=api_id,
