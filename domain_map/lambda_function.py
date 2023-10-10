@@ -45,8 +45,8 @@ def lambda_handler(event, context):
 
         get_api(api_id)
         get_api_mapping(api_id, domain_name, stage_name, op, base_path)
-        create_api_mapping(api_id, domain_name, stage_name, base_path)
         remove_api_mappings(domain_name)
+        create_api_mapping(api_id, domain_name, stage_name, base_path)
         update_api_mapping(api_id, domain_name, stage_name)
 
     except Exception as e:
