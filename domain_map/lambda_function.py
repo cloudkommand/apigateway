@@ -238,7 +238,21 @@ def remove_api_mappings(domain_name):
                 eh.add_log("Removed API Mapping", {"basePath": mapping_identifier, "domain_name": domain_name})
 
             except ClientError as e:
-                if e.response['Error']['Code'] != "NotFoundException":
+                # There is a possibility that the base path has a / in which case, it will fail on the v1 client and need to be attempted with the v2 client
+                if e.response['Error']['Code'] == "BadRequestException":
+                    try:
+                        apiv2.delete_api_mapping(
+                            ApiMappingId=mapping_identifier,
+                            DomainName=domain_name
+                        )
+                        eh.add_log("Removed API Mapping", {"id": mapping_identifier, "domain_name": domain_name})
+        
+                    except ClientError as e:
+                        if e.response['Error']['Code'] != "NotFoundException":
+                            handle_common_errors(e, eh, "Delete API Mapping Failed", 91)
+                        else:
+                            eh.add_log("API Mapping Not found", {"id": mapping_identifier})
+                elif e.response['Error']['Code'] != "NotFoundException":
                     handle_common_errors(e, eh, "Delete API Mapping Failed", 91)
                 else:
                     eh.add_log("API Mapping Not found", {"basePath": mapping_identifier})
