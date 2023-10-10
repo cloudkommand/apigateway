@@ -151,12 +151,16 @@ def get_api_mapping(api_id, domain_name, stage_name, op, base_path):
 
 @ext(handler=eh)
 def create_api_mapping(api_id, domain_name, stage_name, base_path):
+    print(base_path)
     if eh.state.get("version") == 2 or "/" in base_path:
+        print("v2")
+        print(base_path)
         try:
             response = apiv2.create_api_mapping(
                 ApiId=api_id,
                 DomainName=domain_name,
-                Stage=stage_name
+                Stage=stage_name,
+                ApiMappingKey=base_path
             )
 
             eh.add_props({"mapping_identifier": response.get("ApiMappingId")})
