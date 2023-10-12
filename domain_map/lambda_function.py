@@ -221,8 +221,7 @@ def remove_api_mappings(api_id, domain_name):
             if "/" in mapping_identifier:
                 try:
                     response = apiv2.get_api_mappings(
-                        DomainName=domain_name,
-                        MaxResults=20
+                        DomainName=domain_name
                     )
                     print(response)
                     mapping_identifier = list(filter(lambda x: x["ApiMappingKey"] == mapping_identifier, response['Items']))[0].get("ApiMappingId")
