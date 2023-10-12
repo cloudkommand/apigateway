@@ -232,8 +232,11 @@ def remove_api_mappings(api_id, domain_name):
                     )
                     eh.add_log("Removed API Mapping", {"id": mapping_identifier, "domain_name": domain_name})
                 except ClientError as e:
-                    handle_common_errors(e, eh, "Get Special V2 API Mappings Failed", 91)
-                    return 0
+                    if e.response['Error']['Code'] != "NotFoundException":
+                        handle_common_errors(e, eh, "Get Special V2 API Mappings Failed", 91)
+                    else:
+                        eh.add_log("API Mapping Not Found", {"id": mapping_identifier, "domain_name": domain_name})
+                        return 0
             else:        
                 try:
                     apiv1.delete_base_path_mapping(
