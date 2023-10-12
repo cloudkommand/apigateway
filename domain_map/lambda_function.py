@@ -224,26 +224,26 @@ def remove_api_mappings(api_id, domain_name):
                         DomainName=domain_name
                     )
                     print(response)
-                    mapping_identifier = list(filter(lambda x: x["ApiMappingKey"] == mapping_identifier, response['Items']))[0].get("ApiMappingId")
+                    delete_identifier = list(filter(lambda x: x["ApiMappingKey"] == mapping_identifier, response['Items']))[0].get("ApiMappingId")
                     
                     apiv2.delete_api_mapping(
-                        ApiMappingId=mapping_identifier,
+                        ApiMappingId=delete_identifier,
                         DomainName=domain_name
                     )
                     eh.add_log("Removed API Mapping", {"id": mapping_identifier, "domain_name": domain_name})
                 except ClientError as e:
                     handle_common_errors(e, eh, "Get Special V2 API Mappings Failed", 91)
                     return 0
-                    
-            try:
-                apiv1.delete_base_path_mapping(
-                    domainName=domain_name,
-                    basePath=mapping_identifier
-                )
-                eh.add_log("Removed API Mapping", {"basePath": mapping_identifier, "domain_name": domain_name})
+            else:        
+                try:
+                    apiv1.delete_base_path_mapping(
+                        domainName=domain_name,
+                        basePath=mapping_identifier
+                    )
+                    eh.add_log("Removed API Mapping", {"basePath": mapping_identifier, "domain_name": domain_name})
 
-            except ClientError as e:
-                if e.response['Error']['Code'] != "NotFoundException":
-                    handle_common_errors(e, eh, "Delete API Mapping Failed", 91)
-                else:
-                    eh.add_log("API Mapping Not found", {"basePath": mapping_identifier})
+                except ClientError as e:
+                    if e.response['Error']['Code'] != "NotFoundException":
+                        handle_common_errors(e, eh, "Delete API Mapping Failed", 91)
+                    else:
+                        eh.add_log("API Mapping Not found", {"basePath": mapping_identifier})
