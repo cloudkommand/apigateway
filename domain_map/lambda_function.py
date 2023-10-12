@@ -45,7 +45,7 @@ def lambda_handler(event, context):
 
         get_api(api_id)
         get_api_mapping(api_id, domain_name, stage_name, op, base_path)
-        remove_api_mappings(domain_name)
+        remove_api_mappings(api_id, domain_name)
         create_api_mapping(api_id, domain_name, stage_name, base_path)
         update_api_mapping(api_id, domain_name, stage_name)
 
@@ -93,52 +93,40 @@ def get_api_mapping(api_id, domain_name, stage_name, op, base_path):
             print(f"this_api_mappings = {this_api_mappings}")
             print(f"this_stage_mappings = {this_stage_mappings}")
 
-            if op == "delete":
-                if this_stage_mappings:
-                    eh.add_op("remove_api_mappings", list(map(lambda x: x['ApiMappingId'], this_stage_mappings)))
-                else:
-                    eh.add_log("No API Mappings to Delete", {"api_id": api_id, "domain_name": domain_name, "stage_name": stage_name})
-            
-            else:
-                # If no mappings at all for this API, we need to create one
-                if not this_api_mappings:
-                    eh.add_op("create_api_mapping")
 
-                # If we already have a mapping for this stage, we update it, and remove all other mappings from this domain
-                elif this_stage_mappings:
-                    keep_mapping_id = this_stage_mappings[0].get("ApiMappingId")
-                    eh.add_op("update_api_mapping", keep_mapping_id)
-                    if len(this_api_mappings) > 1:
-                        eh.add_op("remove_api_mappings", list(map(lambda x: x['ApiMappingId'], filter(lambda x: x["ApiMapingId"] != keep_mapping_id, this_api_mappings))))
+            # If no mappings at all for this API, we need to create one
+            if not this_api_mappings:
+                eh.add_op("create_api_mapping")
 
-                # If we have a mapping for this API, but for a different stage, we remove all mappings for this domain, and create a new one
-                elif not this_stage_mappings and this_api_mappings:
-                    eh.add_op("remove_api_mappings", list(map(lambda x: x['ApiMappingId'], this_api_mappings)))
-                    eh.add_op("create_api_mapping")
+            # If we already have a mapping for this stage, we update it, and remove all other mappings from this domain
+            elif this_stage_mappings:
+                keep_mapping_id = this_stage_mappings[0].get("ApiMappingId")
+                eh.add_op("update_api_mapping", keep_mapping_id)
+                if len(this_api_mappings) > 1:
+                    eh.add_op("remove_api_mappings", list(map(lambda x: x['ApiMappingId'], filter(lambda x: x["ApiMapingId"] != keep_mapping_id, this_api_mappings))))
+
+            # If we have a mapping for this API, but for a different stage, we remove all mappings for this domain, and create a new one
+            elif not this_stage_mappings and this_api_mappings:
+                eh.add_op("remove_api_mappings", list(map(lambda x: x['ApiMappingId'], this_api_mappings)))
+                eh.add_op("create_api_mapping")
 
         else:
             response = apiv1.get_base_path_mappings(domainName=domain_name)
             eh.add_log("Got Domain API Mappings", response)
             this_stage_mappings = list(filter(lambda x: ((x["stage"] == stage_name) and (x['restApiId'] == api_id)), response.get('items', [])))
             print(f"this_stage_mappings = {this_stage_mappings}")
-            if op == "delete":
-                if this_stage_mappings:
-                    eh.add_op("remove_api_mappings", list(map(lambda x: x['basePath'], this_stage_mappings)))
-                else:
-                    eh.add_log("No API Mappings to Delete", {"api_id": api_id, "domain_name": domain_name, "stage_name": stage_name})
 
-            else:
-                if this_stage_mappings:
-                    print(f"This stage mappings: {this_stage_mappings}")
-                    test_base_path = base_path or "(none)"
-                    if test_base_path != this_stage_mappings[0].get("basePath"):
-                        eh.add_op("remove_api_mappings", list(map(lambda x: x['basePath'], this_stage_mappings)))
-                        eh.add_op("create_api_mapping")
-                    else:
-                        eh.add_log("API Mapping Already Exists, Exiting", {"api_id": api_id, "domain_name": domain_name, "stage_name": stage_name})
-                        eh.add_props({"mapping_identifier": this_stage_mappings[0].get("basePath")})
-                else:
+            if this_stage_mappings:
+                print(f"This stage mappings: {this_stage_mappings}")
+                test_base_path = base_path or "(none)"
+                if test_base_path != this_stage_mappings[0].get("basePath"):
+                    eh.add_op("remove_api_mappings", list(map(lambda x: x['basePath'], this_stage_mappings)))
                     eh.add_op("create_api_mapping")
+                else:
+                    eh.add_log("API Mapping Already Exists, Exiting", {"api_id": api_id, "domain_name": domain_name, "stage_name": stage_name})
+                    eh.add_props({"mapping_identifier": this_stage_mappings[0].get("basePath")})
+            else:
+                eh.add_op("create_api_mapping")
 
     
     except ClientError as e:
@@ -153,17 +141,16 @@ def get_api_mapping(api_id, domain_name, stage_name, op, base_path):
 def create_api_mapping(api_id, domain_name, stage_name, base_path):
     print(base_path)
     if eh.state.get("version") == 2 or "/" in base_path:
-        print("v2")
-        print(base_path)
         try:
-            response = apiv2.create_api_mapping(
-                ApiId=api_id,
-                DomainName=domain_name,
-                Stage=stage_name,
-                ApiMappingKey=base_path
-            )
+            params = remove_none_attributes({
+                "ApiId": api_id,
+                "DomainName": domain_name,
+                "Stage": stage_name,
+                "ApiMappingKey": base_path
+            })
+            response = apiv2.create_api_mapping(**params)
 
-            eh.add_props({"mapping_identifier": response.get("ApiMappingId")})
+            eh.add_props({"mapping_identifier": base_path or response.get("ApiMappingId")})
             eh.add_log("Created API Mapping", response)
         except ClientError as e:
             if "ApiMapping key already exists for this domain name" in str(e):
@@ -213,9 +200,10 @@ def update_api_mapping(api_id, domain_name, stage_name):
         handle_common_errors(e, eh, "Update API Mapping Failed", 91)
 
 @ext(handler=eh)
-def remove_api_mappings(domain_name):
+def remove_api_mappings(api_id, domain_name):
 
     for mapping_identifier in eh.ops['remove_api_mappings']:
+        print(mapping_identifier)
         if eh.state.get("version") == 2:
             try:
                 apiv2.delete_api_mapping(
@@ -230,6 +218,18 @@ def remove_api_mappings(domain_name):
                 else:
                     eh.add_log("API Mapping Not found", {"id": mapping_identifier})
         else:
+            if "/" in mapping_identifier:
+                try:
+                    response = apiv2.get_api_mappings(
+                        DomainName=domain_name,
+                        MaxResults=20
+                    )
+                    print(response)
+                    mapping_identifier = list(filter(lambda x: x["ApiMappingKey"] == mapping_identifier, response['Items']))[0].get("ApiMappingId")
+                    print(mapping_identifier)
+                except ClientError as e:
+                    handle_common_errors(e, eh, "Get Special V2 API Mappings Failed", 91)
+                    return 0
             try:
                 apiv1.delete_base_path_mapping(
                     domainName=domain_name,
@@ -238,21 +238,7 @@ def remove_api_mappings(domain_name):
                 eh.add_log("Removed API Mapping", {"basePath": mapping_identifier, "domain_name": domain_name})
 
             except ClientError as e:
-                # There is a possibility that the base path has a / in which case, it will fail on the v1 client and need to be attempted with the v2 client
-                if e.response['Error']['Code'] == "BadRequestException":
-                    try:
-                        apiv2.delete_api_mapping(
-                            ApiMappingId=mapping_identifier,
-                            DomainName=domain_name
-                        )
-                        eh.add_log("Removed API Mapping", {"id": mapping_identifier, "domain_name": domain_name})
-        
-                    except ClientError as e:
-                        if e.response['Error']['Code'] != "NotFoundException":
-                            handle_common_errors(e, eh, "Delete API Mapping Failed", 91)
-                        else:
-                            eh.add_log("API Mapping Not found", {"id": mapping_identifier})
-                elif e.response['Error']['Code'] != "NotFoundException":
+                if e.response['Error']['Code'] != "NotFoundException":
                     handle_common_errors(e, eh, "Delete API Mapping Failed", 91)
                 else:
                     eh.add_log("API Mapping Not found", {"basePath": mapping_identifier})
