@@ -225,10 +225,16 @@ def remove_api_mappings(api_id, domain_name):
                     )
                     print(response)
                     mapping_identifier = list(filter(lambda x: x["ApiMappingKey"] == mapping_identifier, response['Items']))[0].get("ApiMappingId")
-                    print(mapping_identifier)
+                    
+                    apiv2.delete_api_mapping(
+                        ApiMappingId=mapping_identifier,
+                        DomainName=domain_name
+                    )
+                    eh.add_log("Removed API Mapping", {"id": mapping_identifier, "domain_name": domain_name})
                 except ClientError as e:
                     handle_common_errors(e, eh, "Get Special V2 API Mappings Failed", 91)
                     return 0
+                    
             try:
                 apiv1.delete_base_path_mapping(
                     domainName=domain_name,
